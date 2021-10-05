@@ -35,6 +35,11 @@ package                    { return 3; }
 !=						   { return 17; }
 !						   { return 18; }
 \|\|					   { return 19; }
+\+						   { return 20; }
+-						   { return 21; }
+\*						   { return 22; }
+\/						   { return 23; }
+\%						   { return 24; }
 .                          { cerr << "Error: unexpected character in input" << endl; return -1; }
 
 %%
@@ -65,6 +70,11 @@ int main () {
 		case 17: cout << "T_NEQ" << lexeme << endl; break;
 		case 18: cout << "T_NOT" << lexeme << endl; break;
 		case 19: cout << "T_OR" << lexeme << endl; break;
+		case 20: cout << "T_PLUS" << lexeme << endl; break;
+		case 21: cout << "T_MINUS" << lexeme << endl; break;
+		case 22: cout << "T_MULT" << lexeme << endl; break;
+		case 23: cout << "T_DIV" << lexeme << endl; break;
+		case 24: cout << "T_MOD" << lexeme << endl; break;
         default: exit(EXIT_FAILURE);
       }
     } else {
