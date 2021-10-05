@@ -40,6 +40,14 @@ package                    { return 3; }
 \*						   { return 22; }
 \/						   { return 23; }
 \%						   { return 24; }
+\=						   { return 25; }
+,						   { return 26; }
+\.						   { return 27; }
+\<\<					   { return 28; }
+\[						   { return 29; }
+\]						   { return 30; }
+>>						   { return 31; }
+\;						   { return 32; }
 .                          { cerr << "Error: unexpected character in input" << endl; return -1; }
 
 %%
@@ -75,6 +83,14 @@ int main () {
 		case 22: cout << "T_MULT" << lexeme << endl; break;
 		case 23: cout << "T_DIV" << lexeme << endl; break;
 		case 24: cout << "T_MOD" << lexeme << endl; break;
+		case 25: cout << "T_ASSIGN" << lexeme << endl; break;
+		case 26: cout << "T_COMMA" << lexeme << endl; break;
+		case 27: cout << "T_DOT" << lexeme << endl; break;
+		case 28: cout << "T_LEFTSHIFT" << lexeme << endl; break;
+		case 29: cout << "T_LSB" << lexeme << endl; break;
+		case 30: cout << "T_RSB" << lexeme << endl; break;
+		case 31: cout << "T_RIGHTSHIFT" << lexeme << endl; break;
+		case 32: cout << "T_SEMICOLON" << lexeme << endl; break;
         default: exit(EXIT_FAILURE);
       }
     } else {
