@@ -1,4 +1,6 @@
-
+	/*
+		Definition Section
+	*/
 %{
 
 #include <iostream>
@@ -8,10 +10,12 @@ using namespace std;
 
 %}
 
+
 %%
-  /*
-    Pattern definitions for all tokens
-  */
+	/*
+		Rules Section
+	*/
+
 func                       { return 1; }
 int                        { return 2; }
 package                    { return 3; }
@@ -22,6 +26,15 @@ package                    { return 3; }
 [a-zA-Z\_][a-zA-Z\_0-9]*   { return 8; }
 [\t\r\a\v\b ]+             { return 9; }
 \n                         { return 10; }
+&&						   { return 11; }
+==						   { return 12; }
+\>=						   { return 13; }
+\>						   { return 14; }
+\<=					       { return 15; }
+\<						   { return 16; }
+!=						   { return 17; }
+!						   { return 18; }
+\|\|					   { return 19; }
 .                          { cerr << "Error: unexpected character in input" << endl; return -1; }
 
 %%
@@ -43,6 +56,15 @@ int main () {
         case 8: cout << "T_ID " << lexeme << endl; break;
         case 9: cout << "T_WHITESPACE " << lexeme << endl; break;
         case 10: cout << "T_WHITESPACE \\n" << endl; break;
+		case 11: cout << "T_AND" << lexeme << endl; break;
+		case 12: cout << "T_EQ" << lexeme << endl; break;
+		case 13: cout << "T_GEQ" << lexeme << endl; break;
+		case 14: cout << "T_GT" << lexeme << endl; break;
+		case 15: cout << "T_LEQ" << lexeme << endl; break;
+		case 16: cout << "T_LT" << lexeme << endl; break;
+		case 17: cout << "T_NEQ" << lexeme << endl; break;
+		case 18: cout << "T_NOT" << lexeme << endl; break;
+		case 19: cout << "T_OR" << lexeme << endl; break;
         default: exit(EXIT_FAILURE);
       }
     } else {
