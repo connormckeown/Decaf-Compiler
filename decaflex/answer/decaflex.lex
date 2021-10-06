@@ -11,6 +11,12 @@ using namespace std;
 %}
 
 
+char_lit_chars  [.]
+escaped_char    "\\"("n"|"r"|"t"|"v"|"f"|"a"|"b"|"\\"|"\'"|"\"")
+char_lit        "\'"({char_lit_chars}|{escaped_char})"\'"
+
+
+
 /*
     Rules Section
 */
@@ -34,6 +40,7 @@ true                        { return 44; }
 var                         { return 45; }
 void                        { return 46; }
 while                       { return 47; }
+{char_lit}                  { return 48; }
 \{                          { return 4; }
 \}                          { return 5; }
 \(                          { return 6; }
@@ -147,6 +154,7 @@ int main () {
                 case 45: cout << "T_VAR " << lexeme << endl; break;
                 case 46: cout << "T_VOID " << lexeme << endl; break;
                 case 47: cout << "T_WHILE " << lexeme << endl; break;
+                case 48: cout << "T_CHARCONSTANT " << lexeme << endl; break;
                 default: exit(EXIT_FAILURE);
             }
         } else {
