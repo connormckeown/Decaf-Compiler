@@ -15,6 +15,7 @@ char_lit_chars  [.]
 escaped_char    "\\"("n"|"r"|"t"|"v"|"f"|"a"|"b"|"\\"|"\'"|"\"")
 char_lit        "\'"({char_lit_chars}|{escaped_char})"\'"
 
+string_lit      "\""({char_lit_chars}|{escaped_char})"\""
 
 
 /*
@@ -41,6 +42,7 @@ var                         { return 45; }
 void                        { return 46; }
 while                       { return 47; }
 {char_lit}                  { return 48; }
+{string_lit}                { return 49; }
 \{                          { return 4; }
 \}                          { return 5; }
 \(                          { return 6; }
@@ -155,6 +157,7 @@ int main () {
                 case 46: cout << "T_VOID " << lexeme << endl; break;
                 case 47: cout << "T_WHILE " << lexeme << endl; break;
                 case 48: cout << "T_CHARCONSTANT " << lexeme << endl; break;
+                case 49: cout << "T_STRINGCONSTANT " << lexeme << endl; break;
                 default: exit(EXIT_FAILURE);
             }
         } else {
