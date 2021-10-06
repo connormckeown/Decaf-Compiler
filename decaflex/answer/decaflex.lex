@@ -40,7 +40,7 @@ while                       { return 47; }
 \)                          { return 7; }
 [a-zA-Z\_][a-zA-Z\_0-9]*    { return 8; }
 [\t\r\a\v\b ]+              { return 9; }
-\n                          { return 10; }
+\n+[\t\r\a\v\b ]*\n*        { return 10; }
 &&                          { return 11; }
 ==                          { return 12; }
 \>=                         { return 13; }
@@ -68,6 +68,31 @@ while                       { return 47; }
 
 %%
 
+/*
+    Function to concatenate chunks of whitespace into a single T_WHITESPACE token
+*/
+string concat_whitespace(string lexeme) {
+    string whitespace = "";
+    for (int i = 0; i < lexeme.size(); i++) {
+        if (lexeme[i] == '\n') {
+            whitespace += "\\n";
+        } else if (lexeme[i] == '\t') {
+            whitespace += "\t";
+        } else if (lexeme[i] == '\r') {
+            whitespace += "\r";
+        } else if (lexeme[i] == '\v') {
+            whitespace += "\v";
+        } else if (lexeme[i] == '\b') {
+            whitespace += "\b";
+        } else if (lexeme[i] == ' ') {
+            whitespace += " ";
+        }
+    }
+    return whitespace;
+}
+
+
+
 int main () {
     int token;
     string lexeme;
@@ -84,7 +109,7 @@ int main () {
                 case 7: cout << "T_RPAREN " << lexeme << endl; break;
                 case 8: cout << "T_ID " << lexeme << endl; break;
                 case 9: cout << "T_WHITESPACE " << lexeme << endl; break;
-                case 10: cout << "T_WHITESPACE \\n" << endl; break;
+                case 10: cout << "T_WHITESPACE " << concat_whitespace(lexeme) << endl; break;
                 case 11: cout << "T_AND " << lexeme << endl; break;
                 case 12: cout << "T_EQ " << lexeme << endl; break;
                 case 13: cout << "T_GEQ " << lexeme << endl; break;
