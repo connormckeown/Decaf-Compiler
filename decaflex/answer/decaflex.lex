@@ -8,6 +8,9 @@
 
 using namespace std;
 
+int lines = 0;
+int pos = 0;
+
 %}
 
 
@@ -93,6 +96,8 @@ string concat_whitespace(string lexeme) {
     for (int i = 0; i < lexeme.size(); i++) {
         if (lexeme[i] == '\n') {
             whitespace += "\\n";
+            pos = 0;
+            lines++;
         } else if (lexeme[i] == '\t') {
             whitespace += "\t";
         } else if (lexeme[i] == '\r') {
@@ -104,6 +109,7 @@ string concat_whitespace(string lexeme) {
         } else if (lexeme[i] == ' ') {
             whitespace += " ";
         }
+        pos++;
     }
     return whitespace;
 }
@@ -117,60 +123,60 @@ int main () {
         if (token > 0) {
             lexeme.assign(yytext);
             switch(token) {
-                case 1: cout << "T_FUNC " << lexeme << endl; break;
-                case 2: cout << "T_INTTYPE " << lexeme << endl; break;
-                case 3: cout << "T_PACKAGE " << lexeme << endl; break;
-                case 4: cout << "T_LCB " << lexeme << endl; break;
-                case 5: cout << "T_RCB " << lexeme << endl; break;
-                case 6: cout << "T_LPAREN " << lexeme << endl; break;
-                case 7: cout << "T_RPAREN " << lexeme << endl; break;
-                case 8: cout << "T_ID " << lexeme << endl; break;
-                case 9: cout << "T_WHITESPACE " << lexeme << endl; break;
+                case 1: cout << "T_FUNC " << lexeme << endl; pos += lexeme.size(); break;
+                case 2: cout << "T_INTTYPE " << lexeme << endl; pos += lexeme.size(); break;
+                case 3: cout << "T_PACKAGE " << lexeme << endl; pos += lexeme.size(); break;
+                case 4: cout << "T_LCB " << lexeme << endl; pos += lexeme.size(); break;
+                case 5: cout << "T_RCB " << lexeme << endl; pos += lexeme.size(); break;
+                case 6: cout << "T_LPAREN " << lexeme << endl; pos += lexeme.size(); break;
+                case 7: cout << "T_RPAREN " << lexeme << endl; pos += lexeme.size(); break;
+                case 8: cout << "T_ID " << lexeme << endl; pos += lexeme.size(); break;
+                case 9: cout << "T_WHITESPACE " << lexeme << endl; pos += lexeme.size(); break;
                 case 10: cout << "T_WHITESPACE " << concat_whitespace(lexeme) << endl; break;
-                case 11: cout << "T_AND " << lexeme << endl; break;
-                case 12: cout << "T_EQ " << lexeme << endl; break;
-                case 13: cout << "T_GEQ " << lexeme << endl; break;
-                case 14: cout << "T_GT " << lexeme << endl; break;
-                case 15: cout << "T_LEQ " << lexeme << endl; break;
-                case 16: cout << "T_LT " << lexeme << endl; break;
-                case 17: cout << "T_NEQ " << lexeme << endl; break;
-                case 18: cout << "T_NOT " << lexeme << endl; break;
-                case 19: cout << "T_OR " << lexeme << endl; break;
-                case 20: cout << "T_PLUS " << lexeme << endl; break;
-                case 21: cout << "T_MINUS " << lexeme << endl; break;
-                case 22: cout << "T_MULT " << lexeme << endl; break;
-                case 23: cout << "T_DIV " << lexeme << endl; break;
-                case 24: cout << "T_MOD " << lexeme << endl; break;
-                case 25: cout << "T_ASSIGN " << lexeme << endl; break;
-                case 26: cout << "T_COMMA " << lexeme << endl; break;
-                case 27: cout << "T_DOT " << lexeme << endl; break;
-                case 28: cout << "T_LEFTSHIFT " << lexeme << endl; break;
-                case 29: cout << "T_LSB " << lexeme << endl; break;
-                case 30: cout << "T_RSB " << lexeme << endl; break;
-                case 31: cout << "T_RIGHTSHIFT " << lexeme << endl; break;
-                case 32: cout << "T_SEMICOLON " << lexeme << endl; break;
-                case 33: cout << "T_BOOLTYPE " << lexeme << endl; break;
-                case 34: cout << "T_BREAK " << lexeme << endl; break;
-                case 35: cout << "T_CONTINUE " << lexeme << endl; break;
-                case 36: cout << "T_ELSE " << lexeme << endl; break;
-                case 37: cout << "T_EXTERN " << lexeme << endl; break;
-                case 38: cout << "T_FALSE " << lexeme << endl; break;
-                case 39: cout << "T_FOR " << lexeme << endl; break;
-                case 40: cout << "T_IF " << lexeme << endl; break;
-                case 41: cout << "T_NULL " << lexeme << endl; break;
-                case 42: cout << "T_RETURN " << lexeme << endl; break;
-                case 43: cout << "T_STRINGTYPE " << lexeme << endl; break;
-                case 44: cout << "T_TRUE " << lexeme << endl; break;
-                case 45: cout << "T_VAR " << lexeme << endl; break;
-                case 46: cout << "T_VOID " << lexeme << endl; break;
-                case 47: cout << "T_WHILE " << lexeme << endl; break;
-                case 48: cout << "T_CHARCONSTANT " << lexeme << endl; break;
-                case 49: cout << "T_STRINGCONSTANT " << lexeme << endl; break;
-                case 50: cout << "T_INTCONSTANT " << lexeme << endl; break;
-                case 51: cout << "T_COMMENT " << lexeme.substr(0, lexeme.size()-1) << "\\n" << endl; break;
-                case 52: cout << "Error: newline in string constant" << endl << "Lexical error: line 0, position 0" << endl; exit(EXIT_FAILURE);
-                case 53: cout << "Error: string constant is missing closing delimiter" << endl << "Lexical error: line 0, position 0" << endl; exit(EXIT_FAILURE);
-                case 54: cout << "Error: unknown escape sequence in string constant" << endl << "Lexical error: line 0, position 0" << endl; exit(EXIT_FAILURE);
+                case 11: cout << "T_AND " << lexeme << endl; pos += lexeme.size(); break;
+                case 12: cout << "T_EQ " << lexeme << endl; pos += lexeme.size(); break;
+                case 13: cout << "T_GEQ " << lexeme << endl; pos += lexeme.size(); break;
+                case 14: cout << "T_GT " << lexeme << endl; pos += lexeme.size(); break;
+                case 15: cout << "T_LEQ " << lexeme << endl; pos += lexeme.size(); break;
+                case 16: cout << "T_LT " << lexeme << endl; pos += lexeme.size(); break;
+                case 17: cout << "T_NEQ " << lexeme << endl; pos += lexeme.size(); break;
+                case 18: cout << "T_NOT " << lexeme << endl; pos += lexeme.size(); break;
+                case 19: cout << "T_OR " << lexeme << endl; pos += lexeme.size(); break;
+                case 20: cout << "T_PLUS " << lexeme << endl; pos += lexeme.size(); break;
+                case 21: cout << "T_MINUS " << lexeme << endl; pos += lexeme.size(); break;
+                case 22: cout << "T_MULT " << lexeme << endl; pos += lexeme.size(); break;
+                case 23: cout << "T_DIV " << lexeme << endl; pos += lexeme.size(); break;
+                case 24: cout << "T_MOD " << lexeme << endl; pos += lexeme.size(); break;
+                case 25: cout << "T_ASSIGN " << lexeme << endl; pos += lexeme.size(); break;
+                case 26: cout << "T_COMMA " << lexeme << endl; pos += lexeme.size(); break;
+                case 27: cout << "T_DOT " << lexeme << endl; pos += lexeme.size(); break;
+                case 28: cout << "T_LEFTSHIFT " << lexeme << endl; pos += lexeme.size(); break;
+                case 29: cout << "T_LSB " << lexeme << endl; pos += lexeme.size(); break;
+                case 30: cout << "T_RSB " << lexeme << endl; pos += lexeme.size(); break;
+                case 31: cout << "T_RIGHTSHIFT " << lexeme << endl; pos += lexeme.size(); break;
+                case 32: cout << "T_SEMICOLON " << lexeme << endl; pos += lexeme.size(); break;
+                case 33: cout << "T_BOOLTYPE " << lexeme << endl; pos += lexeme.size(); break;
+                case 34: cout << "T_BREAK " << lexeme << endl; pos += lexeme.size(); break;
+                case 35: cout << "T_CONTINUE " << lexeme << endl; pos += lexeme.size(); break;
+                case 36: cout << "T_ELSE " << lexeme << endl; pos += lexeme.size(); break;
+                case 37: cout << "T_EXTERN " << lexeme << endl; pos += lexeme.size(); break;
+                case 38: cout << "T_FALSE " << lexeme << endl; pos += lexeme.size(); break;
+                case 39: cout << "T_FOR " << lexeme << endl; pos += lexeme.size(); break;
+                case 40: cout << "T_IF " << lexeme << endl; pos += lexeme.size(); break;
+                case 41: cout << "T_NULL " << lexeme << endl; pos += lexeme.size(); break;
+                case 42: cout << "T_RETURN " << lexeme << endl; pos += lexeme.size(); break;
+                case 43: cout << "T_STRINGTYPE " << lexeme << endl; pos += lexeme.size(); break;
+                case 44: cout << "T_TRUE " << lexeme << endl; pos += lexeme.size(); break;
+                case 45: cout << "T_VAR " << lexeme << endl; pos += lexeme.size(); break;
+                case 46: cout << "T_VOID " << lexeme << endl; pos += lexeme.size(); break;
+                case 47: cout << "T_WHILE " << lexeme << endl; pos += lexeme.size(); break;
+                case 48: cout << "T_CHARCONSTANT " << lexeme << endl; pos += lexeme.size(); break;
+                case 49: cout << "T_STRINGCONSTANT " << lexeme << endl; pos += lexeme.size(); break;
+                case 50: cout << "T_INTCONSTANT " << lexeme << endl; pos += lexeme.size(); break;
+                case 51: cout << "T_COMMENT " << lexeme.substr(0, lexeme.size()-1) << "\\n" << endl; pos = 0; lines++; break;
+                case 52: lines++; pos++; cout << "Error: newline in string constant" << endl << "Lexical error: line " << lines << ", position " << pos << endl; exit(EXIT_FAILURE);
+                case 53: lines++; pos++; cout << "Error: string constant is missing closing delimiter" << endl << "Lexical error: line " << lines << ", position " << pos << endl; exit(EXIT_FAILURE);
+                case 54: lines++; pos++; cout << "Error: unknown escape sequence in string constant" << endl << "Lexical error: line " << lines << ", position " << pos << endl; exit(EXIT_FAILURE);
                 default: exit(EXIT_FAILURE);
             }
         } else {
