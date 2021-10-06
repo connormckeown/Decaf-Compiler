@@ -17,6 +17,7 @@ escaped_char        "\\"("n"|"r"|"t"|"v"|"f"|"a"|"b"|"\\"|"\'"|"\"")
 char_lit            "\'"({char_lit_chars}|{escaped_char})"\'"
 string_lit          "\""({string_lit_chars}|{escaped_char})*"\""
 string_lit_nerr     "\""({string_lit_chars}|{escaped_char}|"\n")*"\""
+string_lit_delerr   "\""({string_lit_chars}|{escaped_char})*
 
 /*
     Rules Section
@@ -44,6 +45,7 @@ while                       { return 47; }
 {char_lit}                  { return 48; }
 {string_lit}                { return 49; }
 {string_lit_nerr}           { return 52; }
+{string_lit_delerr}         { return 53; }
 \{                          { return 4; }
 \}                          { return 5; }
 \(                          { return 6; }
@@ -164,6 +166,7 @@ int main () {
                 case 50: cout << "T_INTCONSTANT " << lexeme << endl; break;
                 case 51: cout << "T_COMMENT " << lexeme.substr(0, lexeme.size()-1) << "\\n" << endl; break;
                 case 52: cout << "Error: newline in string constant" << endl << "Lexical error: line 0, position 0" << endl; exit(EXIT_FAILURE);
+                case 53: cout << "Error: string constant is missing closing delimiter" << endl << "Lexical error: line 0, position 0" << endl; exit(EXIT_FAILURE);
                 default: exit(EXIT_FAILURE);
             }
         } else {
