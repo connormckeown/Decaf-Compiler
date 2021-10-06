@@ -51,6 +51,7 @@ while                       { return 47; }
 [\t\r\a\v\b ]+              { return 9; }
 \n+[\t\r\a\v\b ]*\n*        { return 10; }
 [0-9]+                      { return 50; }
+\/\/.*\n                    { return 51; }
 &&                          { return 11; }
 ==                          { return 12; }
 \>=                         { return 13; }
@@ -160,6 +161,7 @@ int main () {
                 case 48: cout << "T_CHARCONSTANT " << lexeme << endl; break;
                 case 49: cout << "T_STRINGCONSTANT " << lexeme << endl; break;
                 case 50: cout << "T_INTCONSTANT " << lexeme << endl; break;
+                case 51: cout << "T_COMMENT " << lexeme.substr(0, lexeme.size()-1) << "\\n" << endl; break;
                 default: exit(EXIT_FAILURE);
             }
         } else {
