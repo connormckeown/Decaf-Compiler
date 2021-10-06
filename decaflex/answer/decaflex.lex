@@ -50,6 +50,7 @@ while                       { return 47; }
 [a-zA-Z\_][a-zA-Z\_0-9]*    { return 8; }
 [\t\r\a\v\b ]+              { return 9; }
 \n+[\t\r\a\v\b ]*\n*        { return 10; }
+[0-9]+                      { return 50; }
 &&                          { return 11; }
 ==                          { return 12; }
 \>=                         { return 13; }
@@ -158,6 +159,7 @@ int main () {
                 case 47: cout << "T_WHILE " << lexeme << endl; break;
                 case 48: cout << "T_CHARCONSTANT " << lexeme << endl; break;
                 case 49: cout << "T_STRINGCONSTANT " << lexeme << endl; break;
+                case 50: cout << "T_INTCONSTANT " << lexeme << endl; break;
                 default: exit(EXIT_FAILURE);
             }
         } else {
