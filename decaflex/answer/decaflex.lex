@@ -14,11 +14,15 @@ int pos = 0;
 %}
 
 
-char_lit_chars      [^\\\"]|\\.
+char_lit_chars      [^\\]|\\.
 string_lit_chars    [ 0-9a-zA-Z#$&%()~,\*\+-\./:;<>=!\?\[\]_\{\}|]
 escaped_char        "\\"("n"|"r"|"t"|"v"|"f"|"a"|"b"|"\\"|"\'"|"\"")
 
 char_lit            "\'"({char_lit_chars}|{escaped_char})"\'"
+char_lit_lenerr     \'[a-zA-Z]+\'
+char_lit_termerr    \'.
+char_lit_zerowerr   \'\'
+
 string_lit          "\""({string_lit_chars}|{escaped_char})*"\""
 string_lit_nerr     "\""({string_lit_chars}|{escaped_char}|"\n")*"\""
 string_lit_delerr   "\""({string_lit_chars}|{escaped_char})*
@@ -48,6 +52,9 @@ var                         { return 45; }
 void                        { return 46; }
 while                       { return 47; }
 {char_lit}                  { return 48; }
+{char_lit_zerowerr}         { return 57; }
+{char_lit_lenerr}           { return 55; }
+{char_lit_termerr}          { return 56; }
 {string_lit}                { return 49; }
 {string_lit_nerr}           { return 52; }
 {string_lit_escerr}         { return 54; }
@@ -84,7 +91,7 @@ while                       { return 47; }
 >>                          { return 31; }
 \;                          { return 32; }
 
-.                           { cerr << "Error: unexpected character in input" << endl; return -1; }
+.                           { lines++; pos++; cerr << "Error: unexpected character in input" << endl; exit(EXIT_FAILURE); }
 
 %%
 
@@ -177,6 +184,9 @@ int main () {
                 case 52: lines++; pos++; cout << "Error: newline in string constant" << endl << "Lexical error: line " << lines << ", position " << pos << endl; exit(EXIT_FAILURE);
                 case 53: lines++; pos++; cout << "Error: string constant is missing closing delimiter" << endl << "Lexical error: line " << lines << ", position " << pos << endl; exit(EXIT_FAILURE);
                 case 54: lines++; pos++; cout << "Error: unknown escape sequence in string constant" << endl << "Lexical error: line " << lines << ", position " << pos << endl; exit(EXIT_FAILURE);
+                case 55: lines++; pos++; cout << "Error: char constant length is greater than one" << endl << "Lexical error: line " << lines << ", position " << pos << endl; exit(EXIT_FAILURE);
+                case 56: lines++; pos++; cout << "Error: unterminated char constant" << endl << "Lexical error: line " << lines << ", position " << pos << endl; exit(EXIT_FAILURE);
+                case 57: lines++; pos++; cout << "Error: char constant has zero width" << endl << "Lexical error: line " << lines << ", position " << pos << endl; exit(EXIT_FAILURE);
                 default: exit(EXIT_FAILURE);
             }
         } else {
