@@ -91,7 +91,7 @@ while                       { return 47; }
 >>                          { return 31; }
 \;                          { return 32; }
 
-.                           { lines++; pos++; cerr << "Error: unexpected character in input" << endl; exit(EXIT_FAILURE); }
+.                           { lines++; pos++; cout << "Error: unexpected character in input" << endl << "Lexical error: line " << lines << ", position " << pos << endl; exit(EXIT_FAILURE); }
 
 %%
 
