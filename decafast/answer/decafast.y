@@ -24,10 +24,16 @@ using namespace std;
     std::string *sval;
  }
 
-%token T_PACKAGE
-%token T_LCB
-%token T_RCB
+
+%token T_AND T_EQ T_GEQ T_GT T_LEQ T_LT T_NEQ T_NOT T_OR T_PLUS T_MINUS T_MULT T_DIV T_MOD T_ASSIGN
+%token T_LCB T_RCB T_LPAREN T_RPAREN T_COMMA T_DOT T_LEFTSHIFT T_LSB T_RSB T_RIGHTSHIFT T_SEMICOLON
+%token T_BOOLTYPE T_BREAK T_CONTINUE T_ELSE T_EXTERN T_FALSE T_FOR T_IF T_NULL T_RETURN T_STRINGTYPE
+%token T_PACKAGE T_FUNC T_INTTYPE T_TRUE T_VAR T_VOID T_WHILE
+
 %token <sval> T_ID
+%token <sval> T_CHARCONSTANT
+%token <sval> T_STRINGCONSTANT
+%token <sval> T_INTCONSTANT
 
 %type <ast> extern_list decafpackage
 
