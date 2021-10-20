@@ -44,7 +44,7 @@ using namespace std;
 %left UMINUS
 
 %type <ast> extern_list decafpackage typed_symbol statement constant bool_constant
-%type <ast> rvalue method_arg method_arg_list method_call expr
+%type <ast> rvalue method_arg method_arg_list method_call expr assign
 %type <sval> decaf_type method_type extern_type
 
 %%
@@ -137,6 +137,13 @@ expr: rvalue { $$ = $1; }
     | T_MINUS expr %prec UMINUS { $$ = new UnaryExprAST(string("T_UMINUS"), $2); }
     | T_LPAREN expr T_RPAREN { $$ = $2; }
     ;
+
+assign: T_ID T_ASSIGN expr { $$ = new AssignVarAST(*$1, $3); delete $1; }
+    |   T_ID T_LSB expr T_RSB T_ASSIGN expr { $$ = new AssignArrayLocAST(*$1, $3, $6); delete $1; }
+    ;
+
+
+
 
 %%
 

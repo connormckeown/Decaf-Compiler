@@ -208,3 +208,27 @@ public:
 		}
 	}
 };
+
+class AssignVarAST : public decafAST {
+	string name;
+	decafAST* val;
+public:
+	AssignVarAST(string name, decafAST* val) : name(name), val(val) {}
+	~AssignVarAST() {
+		if (val != NULL) { delete val; }
+	}
+	string str() { return string("AssignVar") + "(" + name + "," + getString(val) + ")"; }
+};
+
+class AssignArrayLocAST : public decafAST {
+	string name;
+	decafAST* index;
+	decafAST* val;
+public:
+	AssignArrayLocAST(string name, decafAST* index, decafAST* val) : name(name), index(index), val(val) {}
+	~AssignArrayLocAST() {
+		if (index != NULL) { delete index; }
+		if (val != NULL) { delete val; }
+	}
+	string str() { return string("AssignArrayLoc") + "(" + name + "," + getString(index) + "," + getString(val) + ")"; }
+};
