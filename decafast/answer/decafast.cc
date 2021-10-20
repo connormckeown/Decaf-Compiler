@@ -127,3 +127,84 @@ public:
 	ConstantAST(string type, string val) : type(type), val(val) {}
 	string str() { return type + "(" + val + ")"; }
 };
+
+class BinaryExprAST : public decafAST {
+	string op;
+	decafAST *LHS;
+	decafAST *RHS;
+public:
+	BinaryExprAST(string op, decafAST *LHS, decafAST *RHS) : op(op), LHS(LHS), RHS(RHS) {}
+	~BinaryExprAST() {
+		if (LHS != NULL) { delete LHS; }
+		if (RHS != NULL) { delete RHS; }
+	}
+	string str() {
+		string res = "";
+		if (op.compare("T_MULT") == 0) { res = "Mult"; }
+		else if (op.compare("T_DIV") == 0) { res = "Div"; }
+		else if (op.compare("T_MOD") == 0) { res = "Mod"; }
+		else if (op.compare("T_PLUS") == 0) { res = "Plus"; }
+		else if (op.compare("T_MINUS") == 0) { res = "Minus"; }
+		else if (op.compare("T_LEFTSHIFT") == 0) { res = "Leftshift"; }
+		else if (op.compare("T_RIGHTSHIFT") == 0) { res = "Rightshift"; }
+		else if (op.compare("T_EQ") == 0) { res = "Eq"; }
+		else if (op.compare("T_NEQ") == 0) { res = "Neq"; }
+		else if (op.compare("T_GEQ") == 0) { res = "Geq"; }
+		else if (op.compare("T_LEQ") == 0) { res = "Leq"; }
+		else if (op.compare("T_GT") == 0) { res = "Gt"; }
+		else if (op.compare("T_LT") == 0) { res = "Lt"; }
+		else if (op.compare("T_AND") == 0) { res = "And"; }
+		else if (op.compare("T_OR") == 0) { res = "Or"; }
+		
+		return string("BinaryExpr") + "(" + res + "," + LHS->str() + "," + RHS->str() + ")";
+	}
+};
+
+class UnaryExprAST : public decafAST {
+	string op;
+	decafAST *LHS;
+public:
+	UnaryExprAST(string op, decafAST *LHS) : op(op), LHS(LHS) {}
+	~UnaryExprAST() {
+		if (LHS != NULL) { delete LHS; }
+	}
+	string str() {
+		string res = "";
+		if (op.compare("T_NOT") == 0) { res = "Not"; }
+		else if (op.compare("T_UMINUS") == 0) { res = "UnaryMinus"; }
+		
+		return string("UnaryExpr") + "(" + res + "," + LHS->str() + ")";
+	}
+};
+
+class VariableExprAST : public decafAST {
+	string name;
+public:
+	VariableExprAST(string name) : name(name) {}
+	string str() { return string("VariableExpr") + "(" + name + ")"; }
+};
+
+class ArrayLocExprAST : public decafAST {
+	string name;
+	decafStmtList* index;
+public:
+	ArrayLocExprAST(string name, decafStmtList* index) : name(name), index(index) {}
+	string str() { return string("ArrayLocExpr") + "(" + name + "," + getString(index) + ")"; }
+};
+
+class MethodCallAST : public decafAST {
+	string name;
+	decafAST *method_arg_list = NULL;
+public:
+	MethodCallAST(string name, decafAST *method_arg_list) : name(name), method_arg_list(method_arg_list) {}
+	~MethodCallAST() {
+		if (method_arg_list != NULL) { delete method_arg_list; }
+	}
+	string str() {
+		if (method_arg_list) {
+			return string("MethodCall") + "(" + name + "," + method_arg_list->str() + ")";
+		} else {
+			return string("MethodCall") + "(" + name + "," + "None" + ")";
+		}
+	}
+};
