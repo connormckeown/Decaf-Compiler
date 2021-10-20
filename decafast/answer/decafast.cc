@@ -232,3 +232,83 @@ public:
 	}
 	string str() { return string("AssignArrayLoc") + "(" + name + "," + getString(index) + "," + getString(val) + ")"; }
 };
+
+class IfStmtAST : public decafAST {
+	decafAST* condition;
+	decafAST* if_block;
+	decafAST* else_block;
+public:
+	IfStmtAST(decafAST* condition, decafAST* if_block, decafAST* else_block) : condition(condition), if_block(if_block), else_block(else_block) {}
+	~IfStmtAST() {
+		if (condition != NULL) { delete condition; }
+		if (if_block != NULL) { delete if_block; }
+		if (else_block != NULL) { delete else_block; }
+	}
+	string str() { 
+		if (else_block) {
+			return string("IfStmt") + "(" + condition->str() + "," + if_block->str() + "," + else_block->str() + ")";
+		} else {
+			return string("IfStmt") + "(" + condition->str() + "," + if_block->str() + "," + "None" + ")";
+		}
+	}
+};
+
+class WhileStmtAST : public decafAST {
+	decafAST* condition;
+	decafAST* while_block;
+public:
+	WhileStmtAST(decafAST* condition, decafAST* while_block) : condition(condition), while_block(while_block) {}
+	~WhileStmtAST() {
+		if (condition != NULL) { delete condition; }
+		if (while_block != NULL) { delete while_block; }
+	}
+	string str() { return string("WhileStmt") + "(" + condition->str() + "," + while_block->str() + ")"; }
+};
+
+class ForStmtAST : public decafAST {
+	decafAST* pre_assign_list;
+	decafAST* condition;
+	decafAST* loop_assign_list;
+	decafAST* for_block;
+public:
+	ForStmtAST(decafAST* pre_assign_list, decafAST* condition, decafAST* loop_assign_list, decafAST* for_block) 
+		: pre_assign_list(pre_assign_list), condition(condition), loop_assign_list(loop_assign_list), for_block(for_block) {}
+	~ForStmtAST() {
+		if (pre_assign_list != NULL) { delete pre_assign_list; }
+		if (condition != NULL) { delete condition; }
+		if (loop_assign_list != NULL) { delete loop_assign_list; }
+		if (for_block != NULL) { delete for_block; }
+	}
+	string str() { return string("ForStmt") + "(" + pre_assign_list->str() + "," + condition->str() + "," + loop_assign_list->str() + "," + for_block->str() + ")"; }
+};
+
+class ReturnStmtAST : public decafAST {
+	decafAST* return_value;
+public:
+	ReturnStmtAST(decafAST* return_value) : return_value(return_value) {}
+	~ReturnStmtAST() {
+		if (return_value != NULL) { delete return_value; }
+	}
+	string str() { 
+		if (return_value) {
+			return string("ReturnStmt") + "(" + return_value->str() + ")"; 
+		} else {
+			return string("ReturnStmt") + "(" + "None" + ")";
+		}
+		
+	}
+};
+
+class VarDefAST : public decafAST {
+	string name;
+	string type;
+public:
+	VarDefAST(string name, string type) : name(name), type(type) {}
+	string str() {
+		if (name.compare("extern") != 0) {
+			return string("VarDef") + "(" + name + "," + type + ")";
+		} else {
+			return string("VarDef") + "(" + type + ")"; 
+		}
+	}
+};
