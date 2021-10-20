@@ -26,6 +26,30 @@ string getString(decafAST *d) {
 	}
 }
 
+// handles ascii escape chars
+string strtoascii(string s) {
+	int c = s[1];
+	if (c == 92) {
+		c = s[2];
+		if (c == 't') {
+			c = 9;
+		} else if (c == 'n') {
+			c = 10;
+		} else if (c == 'v') {
+			c = 11;
+		} else if (c == 'a') {
+			c = 7;
+		} else if (c == 'f') {
+			c = 12;
+		} else if (c == 'r') {
+			c = 13;
+		} else if (c == 'b') {
+			c = 8;
+		} 
+	}
+	return to_string(c);
+}
+
 template <class T>
 string commaList(list<T> vec) {
     string s("");
@@ -83,4 +107,23 @@ public:
 	string str() { return string("Program") + "(" + getString(ExternList) + "," + getString(PackageDef) + ")"; }
 };
 
+// BlockAST
+class BlockAST : public decafAST {
+	decafStmtList *var_decl_list;
+	decafStmtList *statement_list;
+public:
+	BlockAST(decafStmtList *v, decafStmtList *s) : var_decl_list(v), statement_list(s) {}
+	~BlockAST() {
+		if (var_decl_list != NULL) { delete var_decl_list; }
+		if (statement_list != NULL) { delete statement_list; }
+	}
+	string str() { return string("Block") + "(" + getString(var_decl_list) + "," + getString(statement_list) + ")"; }
+};
 
+class ConstantAST : public decafAST {
+	string type;
+	string val;
+public:
+	ConstantAST(string type, string val) : type(type), val(val) {}
+	string str() { return type + "(" + val + ")"; }
+};
