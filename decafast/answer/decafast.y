@@ -47,7 +47,8 @@ using namespace std;
 %type <ast> extern_list decafpackage typed_symbol statement constant bool_constant
 %type <ast> rvalue method_arg method_arg_list method_call expr assign block
 %type <ast> statement_list var_decl var_decl_list identifier_list assign_list
-%type <sval> decaf_type method_type extern_type break_statement continue_statement
+%type <ast> field_decl field_decl_list method method_block method_list method_type_list break_statement continue_statement
+%type <sval> decaf_type method_type extern_type 
 
 %%
 
@@ -66,8 +67,8 @@ extern_list: /* extern_list can be empty */
     { decafStmtList *slist = new decafStmtList(); $$ = slist; }
     ;
 
-decafpackage: T_PACKAGE T_ID T_LCB T_RCB
-    { $$ = new PackageAST(*$2, new decafStmtList(), new decafStmtList()); delete $2; }
+decafpackage: T_PACKAGE T_ID T_LCB field_decl_list method_list T_RCB
+    { $$ = new PackageAST(*$2, (decafStmtList*)$4, (decafStmtList*)$5); delete $2; }
     ;
 
 decaf_type: T_INTTYPE { $$ = new string("IntType"); }
@@ -152,31 +153,29 @@ assign_list: assign assign_list { decafStmtList* list = (decafStmtList*)$2;
                       $$ = list; }
     ;
 
-break_statement: T_BREAK T_SEMICOLON { $$ = new string("BreakStmt"); }
+break_statement: T_BREAK T_SEMICOLON { $$ = new BreakStmtAST(); }
     ;
 
-continue_statement: T_CONTINUE T_SEMICOLON { $$ = new string("ContinueStmt"); }
+continue_statement: T_CONTINUE T_SEMICOLON { $$ = new ContinueStmtAST(); }
     ;
 
-identifier_list: T_ID T_COMMA identifier_list { vector<string>* list = $3;
-                                                list->push_back(*$1);
+identifier_list: T_ID T_COMMA identifier_list { IdListAST* list = (IdListAST*)$3;
+                                                list->vec.push_back(*$1);
                                                 $$ = list;
                                                 delete $1; }
-    |            T_ID                         { vector<string>* list = new vector<string>;
-                                                list->push_back(*$1);
-                                                $$ = list;
+    |            T_ID                         { $$ = new IdListAST(*$1);
                                                 delete $1; }
     ;
 
-var_decl: T_VAR identifier_list decaf_type T_SEMICOLON { decafStmtList* list = new decafStmtList();
-                                                         for (vector<string>::iterator it = $2->begin(); it != $2->end(); ++it) {
+var_decl: T_VAR identifier_list decaf_type T_SEMICOLON { IdListAST* list = (IdListAST*)$2;
+                                                         decafStmtList* list2 = new decafStmtList();
+                                                         for (vector<string>::iterator it = (*list).vec.begin(); it != (*list).vec.end(); ++it) {
                                                              VarDefAST* var = new VarDefAST(*it, *$3);
-                                                             list->push_front(var);
+                                                             list2->push_front(var);
                                                          }
-                                                         $$ = list;
+                                                         $$ = list2;
                                                          delete $2;
-                                                         delete $3;   
-                                                         }
+                                                         delete $3; }
     ;
 
 var_decl_list: var_decl var_decl_list { decafStmtList* list = new decafStmtList();
@@ -187,6 +186,61 @@ var_decl_list: var_decl var_decl_list { decafStmtList* list = new decafStmtList(
                           list->push_back($1);
                           $$ = list; }
     |          { $$ = new decafStmtList(); }
+    ;
+
+field_decl: T_VAR identifier_list decaf_type T_SEMICOLON { IdListAST* list = (IdListAST*)$2; 
+                                                           decafStmtList* list2 = new decafStmtList();
+                                                           for (vector<string>::iterator it = (*list).vec.begin(); it != (*list).vec.end(); ++it) {
+                                                               FieldDeclAST* field = new FieldDeclAST(*it, *$3, "Scalar");
+                                                               list2->push_front(field); 
+                                                           }
+                                                           $$ = list2;
+                                                           delete $2;
+                                                           delete $3; }
+    ;
+
+field_decl_list: field_decl field_decl_list { decafStmtList* list = new decafStmtList();
+                                              list->push_back($1);
+                                              list->push_back($2);
+                                              $$ = list; }
+    |            field_decl { decafStmtList* list = new decafStmtList();
+                              list->push_back($1);
+                              $$ = list; }
+    |            { $$ = new decafStmtList(); }
+    ;
+
+method_block: T_LCB var_decl_list statement_list T_RCB { $$ = new MethodBlockAST((decafStmtList*)$2, (decafStmtList*)$3); }
+    ;
+
+method_type_list: method_type_list T_COMMA T_ID decaf_type { decafStmtList* list = new decafStmtList();
+                                                             VarDefAST* var = new VarDefAST(*$3, *$4); 
+                                                             list->push_back($1);
+                                                             list->push_back(var);
+                                                             $$ = list;
+                                                             delete $3; }
+    |             T_ID decaf_type { decafStmtList* list = new decafStmtList();
+                                    VarDefAST* var = new VarDefAST(*$1, *$2);
+                                    list->push_back(var);
+                                    $$ = list;
+                                    delete $1; }
+    ;
+
+method: T_FUNC T_ID T_LPAREN method_type_list T_RPAREN method_type method_block { decafStmtList* list = new decafStmtList();
+                                                                                  MethodAST* method = new MethodAST(*$2, *$6, (decafStmtList*)$4, (MethodBlockAST*)$7);
+                                                                                  list->push_back(method);
+                                                                                  $$ = list;
+                                                                                  delete $2;
+                                                                                  delete $6; }
+    ;
+
+method_list: method method_list { decafStmtList* list = new decafStmtList();
+                                  list->push_back($1);
+                                  list->push_back($2);
+                                  $$ = list; }
+    |        method { decafStmtList* list = new decafStmtList(); 
+                      list->push_back($1);
+                      $$ = list; }
+    |        { $$ = new decafStmtList(); }
     ;
 
 /* same structure as var_decl_list */
@@ -207,8 +261,8 @@ statement: assign T_SEMICOLON { $$ = $1; }
     |      method_call T_SEMICOLON { $$ = $1; }
     |      T_IF T_LPAREN expr T_RPAREN block { $$ = new IfStmtAST($3, (BlockAST*)$5, NULL); }
     |      T_IF T_LPAREN expr T_RPAREN block T_ELSE block { $$ = new IfStmtAST($3, (BlockAST*)$5, (BlockAST*)$7); }
-    |      T_WHILE T_LPAREN expr T_RPAREN block { $$ = new WhileStmtAST($3, (BlockAST*)$5)}
-    |      T_FOR T_LPAREN assign_list T_SEMICOLON expr T_SEMICOLON assign_list T_RPAREN block {$$ = new forStmtAST((AssignVarAST*)$3, $5, (AssignVarAST*)$7, (BlockAST*)$9); }
+    |      T_WHILE T_LPAREN expr T_RPAREN block { $$ = new WhileStmtAST($3, (BlockAST*)$5); }
+    |      T_FOR T_LPAREN assign_list T_SEMICOLON expr T_SEMICOLON assign_list T_RPAREN block {$$ = new ForStmtAST((AssignVarAST*)$3, $5, (AssignVarAST*)$7, (BlockAST*)$9); }
     |      T_RETURN T_SEMICOLON { $$ = new ReturnStmtAST(NULL); }
     |      T_RETURN T_LPAREN T_RPAREN T_SEMICOLON { $$ = new ReturnStmtAST(NULL); }
     |      T_RETURN T_LPAREN expr T_RPAREN T_SEMICOLON { $$ = new ReturnStmtAST($3); }

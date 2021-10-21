@@ -312,3 +312,57 @@ public:
 		}
 	}
 };
+
+class FieldDeclAST : public decafAST {
+	string name;
+	string type;
+	string size;
+public:
+	FieldDeclAST(string name, string type, string size) : name(name), type(type), size(size) {}
+	string str() { return string("FieldDecl") + "(" + name + "," + type + "," + size + ")"; }
+};
+
+class MethodBlockAST : public decafAST {
+	decafStmtList* var_decl_list;
+	decafStmtList* statement_list;
+public:
+	MethodBlockAST(decafStmtList* var_decl_list, decafStmtList* statement_list) : var_decl_list(var_decl_list), statement_list(statement_list) {}
+	~MethodBlockAST() {
+		if (var_decl_list != NULL) { delete var_decl_list; }
+		if (statement_list != NULL) { delete statement_list; }
+	}
+	string str() { return string("MethodBlock") + "(" + getString(var_decl_list) + "," + getString(statement_list) + ")"; }
+};
+
+class MethodAST : public decafAST {
+	string name;
+	string type;
+	decafStmtList* param_list;
+	MethodBlockAST* block;
+public:
+	MethodAST(string name, string type, decafStmtList* param_list, MethodBlockAST* block)
+		: name(name), type(type), param_list(param_list), block(block) {}
+	~MethodAST() {
+		if (param_list != NULL) { delete param_list; }
+		if (block != NULL) { delete block; }
+	}
+	string str() { return string("Method") + "(" + name + "," + type + "," + getString(param_list) + "," + getString(block) + ")"; }
+};
+
+class BreakStmtAST : public decafAST {
+	string str() { return string("BreakStmt"); }
+};
+
+class ContinueStmtAST : public decafAST {
+	string str() { return string("ContinueStmt"); }
+};
+
+class IdListAST : public decafAST {
+public:
+	vector<string> vec;
+	IdListAST(string name) {
+		vec.push_back(name);
+	}
+	~IdListAST() {}
+	string str() { return *(vec.begin()); }
+};
