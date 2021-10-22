@@ -102,7 +102,7 @@ decaf_type: T_INTTYPE { $$ = new string("IntType"); }
     |       T_BOOLTYPE { $$ = new string("BoolType"); }
     ;
 
-method_type: T_VOID { $$ = new string("MethodType"); }
+method_type: T_VOID { $$ = new string("VoidType"); }
     |        decaf_type { $$ = $1; }
     ;
 
