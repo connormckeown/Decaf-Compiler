@@ -317,9 +317,17 @@ class FieldDeclAST : public decafAST {
 	string name;
 	string type;
 	string size;
+	ConstantAST* constant;
+	
 public:
-	FieldDeclAST(string name, string type, string size) : name(name), type(type), size(size) {}
-	string str() { return string("FieldDecl") + "(" + name + "," + type + "," + size + ")"; }
+	FieldDeclAST(string name, string type, string size, ConstantAST* constant) : name(name), type(type), size(size), constant(constant) {}
+	string str() { 
+		if (constant) {
+			return string("AssignGlobalVar") + "(" + name + "," + type + "," + getString(constant) +")";
+		} else {
+			return string("FieldDecl") + "(" + name + "," + type + "," + size + ")";
+		}
+	}
 };
 
 class MethodBlockAST : public decafAST {
