@@ -366,3 +366,16 @@ public:
 	~IdListAST() {}
 	string str() { return *(vec.begin()); }
 };
+
+class ExternFunctionAST : public decafAST {
+	string name;
+	string return_type;
+	decafStmtList* type_list;
+public:
+	ExternFunctionAST(string name, string return_type, decafStmtList* type_list) 
+		: name(name), return_type(return_type), type_list(type_list) {}
+	~ExternFunctionAST() {
+		if (type_list != NULL) { delete type_list; }
+	}
+	string str() { return string("ExternFunction") + "(" + name + "," + return_type + "," + getString(type_list) + ")"; }
+};
