@@ -213,8 +213,7 @@ var_decl: T_VAR identifier_list decaf_type T_SEMICOLON { IdListAST* list = (IdLi
                                                              VarDefAST* var = new VarDefAST((*it), *$3);
                                                              list2->push_front(var);
                                                          }
-                                                         $$ = list2; 
-                                                         delete list; }
+                                                         $$ = list2; }
     ;
 
 
@@ -236,31 +235,8 @@ field_decl: T_VAR identifier_list decaf_type T_SEMICOLON { IdListAST* list = (Id
                                                                list2->push_front(field); 
                                                            }
                                                            $$ = list2;
-                                                           delete list;
                                                            delete $2;
                                                            delete $3; }
-    /*
-    |       T_VAR identifier_list T_LSB T_INTCONSTANT T_RSB decaf_type T_SEMICOLON { IdListAST* list = (IdListAST*)$2; 
-                                                                                     decafStmtList* list2 = new decafStmtList();
-                                                                                     for (vector<string>::iterator it = (*list).vec.begin(); it != (*list).vec.end(); ++it) {
-                                                                                         FieldDeclAST* field = new FieldDeclAST((*it), *$6, string("Array(") + string(*$4) + ")", NULL);
-                                                                                         list2->push_back(field); 
-                                                                                     }
-                                                                                     $$ = list2;
-                                                                                     delete list;
-                                                                                     delete $2;
-                                                                                     delete $6; }
-    |       T_VAR identifier_list decaf_type T_ASSIGN constant T_SEMICOLON { IdListAST* list = (IdListAST*)$2; 
-                                                                             decafStmtList* list2 = new decafStmtList();
-                                                                             for (vector<string>::iterator it = (*list).vec.begin(); it != (*list).vec.end(); ++it) {
-                                                                                 FieldDeclAST* field = new FieldDeclAST((*it), *$3, "", (ConstantAST*)$5);
-                                                                                 list2->push_back(field); 
-                                                                             }
-                                                                             $$ = list2;
-                                                                             delete list;
-                                                                             delete $2;
-                                                                             delete $3; }
-    */
     ;
 
 
