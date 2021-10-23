@@ -237,6 +237,24 @@ field_decl: T_VAR identifier_list decaf_type T_SEMICOLON { IdListAST* list = (Id
                                                            $$ = list2;
                                                            delete $2;
                                                            delete $3; }
+    |       T_VAR identifier_list T_LSB T_INTCONSTANT T_RSB decaf_type T_SEMICOLON { IdListAST* list = (IdListAST*)$2; 
+                                                                                     decafStmtList* list2 = new decafStmtList();
+                                                                                     for (vector<string>::iterator it = (*list).vec.begin(); it != (*list).vec.end(); ++it) {
+                                                                                         FieldDeclAST* field = new FieldDeclAST((*it), *$6, "Array(" + string(*$4) + ")", NULL);
+                                                                                         list2->push_front(field); 
+                                                                                     }
+                                                                                     $$ = list2;
+                                                                                     delete $2;
+                                                                                     delete $6; }
+    |       T_VAR identifier_list decaf_type T_ASSIGN constant T_SEMICOLON { IdListAST* list = (IdListAST*)$2; 
+                                                                             decafStmtList* list2 = new decafStmtList();
+                                                                             for (vector<string>::iterator it = (*list).vec.begin(); it != (*list).vec.end(); ++it) {
+                                                                                 FieldDeclAST* field = new FieldDeclAST((*it), *$3, "", (ConstantAST*)$5);
+                                                                                 list2->push_front(field); 
+                                                                             }
+                                                                             $$ = list2;
+                                                                             delete $2;
+                                                                             delete $3; }
     ;
 
 
@@ -245,8 +263,8 @@ method_block: T_LCB var_decl_list statement_list T_RCB { $$ = new MethodBlockAST
 
 method_type_list: method_type_list T_COMMA T_ID decaf_type { decafStmtList* list = new decafStmtList();
                                                              VarDefAST* var = new VarDefAST(*$3, *$4); 
-                                                             list->push_front($1);
                                                              list->push_front(var);
+                                                             list->push_front($1);
                                                              $$ = list;
                                                              delete $3; }
     |             T_ID decaf_type { decafStmtList* list = new decafStmtList();

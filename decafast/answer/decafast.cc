@@ -323,7 +323,7 @@ public:
 	FieldDeclAST(string name, string type, string size, ConstantAST* constant) : name(name), type(type), size(size), constant(constant) {}
 	string str() { 
 		if (constant) {
-			return string("AssignGlobalVar") + "(" + name + "," + type + "," + getString(constant) +")";
+			return string("AssignGlobalVar") + "(" + name + "," + type + "," + getString(constant) + ")";
 		} else {
 			return string("FieldDecl") + "(" + name + "," + type + "," + size + ")";
 		}
@@ -354,7 +354,7 @@ public:
 		if (param_list != NULL) { delete param_list; }
 		if (block != NULL) { delete block; }
 	}
-	string str() { return string("Method") + "(" + name + "," + type + "," + getString(param_list) + "," + getString(block) + ")"; }
+	string str() { return string("Method") + "(" + name + "," + type + "," + getString(param_list) + "," + getString(block) + ")"; }	// param list printed the wrong way
 };
 
 class BreakStmtAST : public decafAST {
