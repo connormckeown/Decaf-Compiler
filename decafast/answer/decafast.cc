@@ -194,15 +194,15 @@ public:
 
 class MethodCallAST : public decafAST {
 	string name;
-	decafAST *method_arg_list = NULL;
+	decafStmtList* method_arg_list = NULL;
 public:
-	MethodCallAST(string name, decafAST *method_arg_list) : name(name), method_arg_list(method_arg_list) {}
+	MethodCallAST(string name, decafStmtList* method_arg_list) : name(name), method_arg_list(method_arg_list) {}
 	~MethodCallAST() {
 		if (method_arg_list != NULL) { delete method_arg_list; }
 	}
 	string str() {
 		if (method_arg_list) {
-			return string("MethodCall") + "(" + name + "," + method_arg_list->str() + ")";
+			return string("MethodCall") + "(" + name + "," + getString(method_arg_list) + ")";
 		} else {
 			return string("MethodCall") + "(" + name + "," + "None" + ")";
 		}
