@@ -14,6 +14,8 @@
 #include <string>
 #include <stdexcept>
 #include <vector>
+#include <list>
+#include <map>
 
 extern int lineno;
 extern int tokenpos;
@@ -27,6 +29,23 @@ extern "C"
 	int yylex(void);  
 	int yywrap(void);
 }
+
+struct struct descriptor {
+	int lineno;
+	string type;
+	llvm::GlobalVariable* p_global;
+	llvm::AllocaInst* p_alloc;
+	llvm::Function* p_func;
+	vector<string> arg_names;
+	vector<llvm::Type*> arg_types;
+} descriptor;
+
+typedef map<string, descriptor* > symbol_table;
+typedef list<symbol_table > symbol_table_list;
+extern symbol_table_list symtbl;
+extern descriptor* access_symtbl(string id);
+
+
 
 #endif
 
