@@ -4,6 +4,8 @@
 #include <ostream>
 #include <iostream>
 #include <sstream>
+#include <map>
+#include <algorithm>
 
 
 #ifndef YYTOKENTYPE
@@ -13,6 +15,7 @@
 using namespace std;
 
 symbol_table_list symtbl;
+llvm::Value* returnValue;
 
 descriptor* access_symtbl(string ident) {
     for (auto i : symtbl) {
@@ -22,6 +25,21 @@ descriptor* access_symtbl(string ident) {
         }
     }
     return NULL;
+}
+
+
+llvm::Type* getType(string type) {
+	if (type == "StringType") { return Builder.getInt8PtrTy(); }
+	else if (type == "IntType") { return Builder.getInt32Ty(); }
+	else if (type == "VoidType") { return Builder.getVoidTy(); }
+	else if (type == "BoolType") { return Builder.getInt1Ty(); }
+	return NULL;
+}
+
+// https://releases.llvm.org/3.6.0/docs/tutorial/LangImpl8.html
+static llvm::AllocaInst *CreateEntryBlockAlloca(llvm::Function *TheFunction, llvm::Type* VarType, const std::string &VarName) {
+	llvm::IRBuilder<> TmpB(&TheFunction->getEntryBlock(), TheFunction->getEntryBlock().begin());
+  	return TmpB.CreateAlloca(VarType, NULL, VarName.c_str());
 }
 
 
@@ -100,7 +118,17 @@ public:
 	int size() { return stmts.size(); }
 	void push_front(decafAST *e) { stmts.push_front(e); }
 	void push_back(decafAST *e) { stmts.push_back(e); }
+	list<decafAST *> getList() { return stmts; }
 	string str() { return commaList<class decafAST *>(stmts); }
+	vector<llvm::Value *> getArgs(){
+		vector<llvm::Value *> args;
+		for (list<class decafAST *>::iterator i = stmts.begin(); i != stmts.end(); i++){
+			args.push_back((*i)->Codegen());
+		}
+		return args;
+	}
+	list<decafAST *>::iterator head() { return stmts.begin(); }
+	list<decafAST *>::iterator tail() { return stmts.end(); }
 	llvm::Value *Codegen() { 
 		return listCodegen<decafAST *>(stmts); 
 	}
@@ -127,6 +155,11 @@ public:
 			val = FieldDeclList->Codegen();
 		}
 		if (NULL != MethodDeclList) {
+			list<decafAST *> stmts = MethodDeclList->getList();
+			for(list<decafAST*>::iterator it = stmts.begin(); it != stmts.end(); it++){
+				MethodAST* method = (MethodAST*)(*it);
+				method->func();
+			}
 			val = MethodDeclList->Codegen();
 		} 
 		// Q: should we enter the class name into the symbol table?
@@ -356,6 +389,8 @@ class VarDefAST : public decafAST {
 	string type;
 public:
 	VarDefAST(string name, string type) : name(name), type(type) {}
+	string getName() { return name; }
+	string getType() { return type; }
 	string str() {
 		if (name.compare("extern") != 0) {
 			return string("VarDef") + "(" + name + "," + type + ")";
@@ -407,6 +442,109 @@ public:
 		if (block != NULL) { delete block; }
 	}
 	string str() { return string("Method") + "(" + name + "," + type + "," + getString(param_list) + "," + getString(block) + ")"; }	// param list printed the wrong way
+	llvm::Function *func() {
+		llvm::Function *p_func;
+		list<decafAST*> stmnts;
+		llvm::Type *return_type = getType(type);
+
+		if(param_list != NULL){
+			stmnts = param_list->getList();
+			param_list->Codegen();
+		}
+
+		vector<string> arg_names;
+		vector<llvm::Type*> arg_types;
+		for(list<decafAST*>::iterator it = stmnts.begin(); it != stmnts.end(); it++) {
+			VarDefAST* varDef = (VarDefAST*)(*it);
+      		llvm::Type* vdtype = getType(varDef->getType());
+      		string vdname = varDef->getName(); 
+			arg_types.push_back(vdtype);  
+      		arg_names.push_back(vdname);
+		}
+
+		p_func = llvm::Function::Create(llvm::FunctionType::get(return_type, arg_types, false), llvm::Function::ExternalLinkage, name, TheModule);
+
+		// build descriptor
+		descriptor* d = new descriptor;
+		d->p_func = p_func;
+		d->lineno = lineno;
+		d->type = type;
+		d->arg_names = arg_names;
+		d->arg_types = arg_types;
+		(symtbl.front())[name] = d;
+
+		return p_func;
+	}
+	llvm::Value *Codegen() {
+		llvm::Function *p_func;
+		list<decafAST*> stmnts;
+		llvm::Type *return_type = getType(type);
+		descriptor* d = access_symtbl(name);
+
+		if (return_type->isIntegerTy(32)) {
+			returnValue = Builder.getInt32(0);
+		} else {
+			returnValue = Builder.getInt1(1) ;
+		}
+
+		if (param_list != NULL) {
+			stmnts = param_list->getList();
+			param_list->Codegen();
+		}
+
+		vector<llvm::Type*> arg_types;
+		vector<string> arg_names;
+		for(list<decafAST*>:: iterator it = stmnts.begin(); it != stmnts.end(); it++){
+			VarDefAST* varDef = (VarDefAST*)(*it);
+			llvm::Type* vdtype = getType(varDef->getType());
+			string vdname = varDef->getName();
+			arg_names.push_back(vdname);
+			arg_types.push_back(vdtype);
+		}
+
+		// if there isn't a descriptor, create one
+		if (d == NULL) {
+			p_func = llvm::Function::Create(llvm::FunctionType::get(return_type, arg_types, false), llvm::Function::ExternalLinkage, name, TheModule);
+
+			descriptor* d = new descriptor;
+			d->p_func = p_func;
+			d->lineno = lineno;
+			d->type = type;
+			d->arg_names = arg_names;
+			d->arg_types = arg_types;
+			(symtbl.front())[name] = d;
+
+		} else {
+			p_func = d->p_func;
+		}
+
+		llvm::BasicBlock *BB = llvm::BasicBlock::Create(TheContext, "entry", p_func);
+		Builder.SetInsertPoint(BB);
+
+		unsigned int idx = 0;
+		for(llvm::Function::arg_iterator it = p_func->arg_begin(); it != p_func->arg_end(); it++, idx++) {
+			descriptor* d = access_symtbl(arg_names[idx]);
+			llvm::AllocaInst* p_alloc = d->p_alloc;
+
+			p_alloc = CreateEntryBlockAlloca(p_func, arg_types[idx], arg_names[idx]);
+			Builder.CreateStore(&(*it), p_alloc);
+
+			d->p_alloc = p_alloc;
+		}
+
+		if (block != NULL) {
+			block->Codegen();
+		}
+
+		if (return_type->isVoidTy()) {
+			Builder.CreateRet(NULL);
+		} else {
+			Builder.CreateRet(returnValue);
+		}
+
+		verifyFunction(*p_func);
+		return (llvm::Value*)p_func;
+	}
 };
 
 class BreakStmtAST : public decafAST {
