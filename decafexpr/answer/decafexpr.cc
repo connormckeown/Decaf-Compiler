@@ -120,77 +120,21 @@ public:
 	void push_back(decafAST *e) { stmts.push_back(e); }
 	list<decafAST *> getList() { return stmts; }
 	string str() { return commaList<class decafAST *>(stmts); }
-	vector<llvm::Value *> getArgs(){
+	vector<llvm::Value *> getArgs() {
 		vector<llvm::Value *> args;
 		for (list<class decafAST *>::iterator i = stmts.begin(); i != stmts.end(); i++){
 			args.push_back((*i)->Codegen());
 		}
 		return args;
 	}
-	list<decafAST *>::iterator head() { return stmts.begin(); }
-	list<decafAST *>::iterator tail() { return stmts.end(); }
+	list<decafAST *>::iterator begin() { return stmts.begin(); }
+	list<decafAST *>::iterator end() { return stmts.end(); }
 	llvm::Value *Codegen() { 
 		return listCodegen<decafAST *>(stmts); 
 	}
 };
 
-class PackageAST : public decafAST {
-	string Name;
-	decafStmtList *FieldDeclList;
-	decafStmtList *MethodDeclList;
-public:
-	PackageAST(string name, decafStmtList *fieldlist, decafStmtList *methodlist) 
-		: Name(name), FieldDeclList(fieldlist), MethodDeclList(methodlist) {}
-	~PackageAST() { 
-		if (FieldDeclList != NULL) { delete FieldDeclList; }
-		if (MethodDeclList != NULL) { delete MethodDeclList; }
-	}
-	string str() { 
-		return string("Package") + "(" + Name + "," + getString(FieldDeclList) + "," + getString(MethodDeclList) + ")";
-	}
-	llvm::Value *Codegen() { 
-		llvm::Value *val = NULL;
-		TheModule->setModuleIdentifier(llvm::StringRef(Name)); 
-		if (NULL != FieldDeclList) {
-			val = FieldDeclList->Codegen();
-		}
-		if (NULL != MethodDeclList) {
-			list<decafAST *> stmts = MethodDeclList->getList();
-			for(list<decafAST*>::iterator it = stmts.begin(); it != stmts.end(); it++){
-				MethodAST* method = (MethodAST*)(*it);
-				method->func();
-			}
-			val = MethodDeclList->Codegen();
-		} 
-		// Q: should we enter the class name into the symbol table?
-		return val; 
-	}
-};
 
-/// ProgramAST - the decaf program
-class ProgramAST : public decafAST {
-	decafStmtList *ExternList;
-	PackageAST *PackageDef;
-public:
-	ProgramAST(decafStmtList *externs, PackageAST *c) : ExternList(externs), PackageDef(c) {}
-	~ProgramAST() { 
-		if (ExternList != NULL) { delete ExternList; } 
-		if (PackageDef != NULL) { delete PackageDef; }
-	}
-	string str() { return string("Program") + "(" + getString(ExternList) + "," + getString(PackageDef) + ")"; }
-	llvm::Value *Codegen() { 
-		llvm::Value *val = NULL;
-		if (NULL != ExternList) {
-			val = ExternList->Codegen();
-		}
-		if (NULL != PackageDef) {
-			val = PackageDef->Codegen();
-		} else {
-			throw runtime_error("no package definition in decaf program");
-		}
-		return val; 
-	}
-};
 
 // BlockAST
 class BlockAST : public decafAST {
@@ -203,6 +147,20 @@ public:
 		if (statement_list != NULL) { delete statement_list; }
 	}
 	string str() { return string("Block") + "(" + getString(var_decl_list) + "," + getString(statement_list) + ")"; }
+	llvm::Value *Codegen() {
+		symtbl.push_front(symbol_table());
+
+		if (var_decl_list != NULL) { var_decl_list->Codegen(); }
+		if (statement_list != NULL) { statement_list->Codegen(); }
+
+		symbol_table st = symtbl.front();
+		for (symbol_table::iterator it = st.begin(); it != st.end(); it++) {
+			delete(it->second);
+		}
+
+		symtbl.pop_front();
+		return NULL;
+	}
 };
 
 class ConstantAST : public decafAST {
@@ -243,6 +201,28 @@ public:
 		
 		return string("BinaryExpr") + "(" + res + "," + LHS->str() + "," + RHS->str() + ")";
 	}
+	llvm::Value *Codegen() {
+		llvm::Value* lval = LHS->Codegen();
+		llvm::Value* rval = RHS->Codegen();
+
+		if(op.compare("T_MULT") == 0) { return Builder.CreateMul(lval, rval, "multmp"); }
+		if(op.compare("T_DIV") == 0) { return Builder.CreateSDiv(lval, rval, "divtmp"); }
+		if(op.compare("T_MOD") == 0) { return Builder.CreateSRem(lval, rval, "modtmp"); }
+		if(op.compare("T_PLUS") == 0) { return Builder.CreateAdd(lval, rval, "addtmp"); }
+		if(op.compare("T_MINUS") == 0) { return Builder.CreateSub(lval, rval, "subtmp"); }
+		if(op.compare("T_LEFTSHIFT") == 0) { return Builder.CreateShl(lval, rval, "lstmp"); }
+		if(op.compare("T_RIGHTSHIFT") == 0) { return Builder.CreateLShr(lval, rval, "rstmp"); }
+		if(op.compare("T_EQ") == 0) { return Builder.CreateICmpEQ(lval, rval, "eqtmp"); }
+		if(op.compare("T_NEQ") == 0) { return Builder.CreateICmpNE(lval, rval, "neqtmp");}
+		if(op.compare("T_GEQ") == 0) { return Builder.CreateICmpSGE(lval, rval, "geqtmp"); }
+		if(op.compare("T_LEQ") == 0) { return Builder.CreateICmpSLE(lval, rval, "leqtmp"); }
+		if(op.compare("T_GT") == 0) { return Builder.CreateICmpSGT(lval, rval, "gttmp"); }
+		if(op.compare("T_LT") == 0) { return Builder.CreateICmpSLT(lval, rval, "lttmp"); }
+		if(op.compare("T_AND") == 0) { return Builder.CreateAnd(lval, rval, "andtmp"); }
+		if(op.compare("T_OR") == 0) { return Builder.CreateOr(lval, rval, "ortmp"); }
+
+		return NULL;
+	}
 };
 
 class UnaryExprAST : public decafAST {
@@ -260,6 +240,15 @@ public:
 		
 		return string("UnaryExpr") + "(" + res + "," + LHS->str() + ")";
 	}
+
+	llvm::Value *Codegen() {
+	  	llvm::Value* lval = LHS->Codegen();
+
+		if (op.compare("T_NOT") == 0) { return Builder.CreateNot(lval, "unottmp"); }
+		if (op.compare("T_UMINUS") == 0) { return Builder.CreateNeg(lval, "unegtmp"); }
+
+		return NULL;
+  	}
 };
 
 class VariableExprAST : public decafAST {
@@ -267,6 +256,10 @@ class VariableExprAST : public decafAST {
 public:
 	VariableExprAST(string name) : name(name) {}
 	string str() { return string("VariableExpr") + "(" + name + ")"; }
+	llvm::Value *Codegen() {
+		descriptor* d = access_symtbl(name);
+		return Builder.CreateLoad(d->p_alloc);
+	}
 };
 
 class ArrayLocExprAST : public decafAST {
@@ -275,6 +268,10 @@ class ArrayLocExprAST : public decafAST {
 public:
 	ArrayLocExprAST(string name, decafStmtList* index) : name(name), index(index) {}
 	string str() { return string("ArrayLocExpr") + "(" + name + "," + getString(index) + ")"; }
+	llvm::Value *Codegen() {
+		descriptor* d = access_symtbl(name);
+		return Builder.CreateLoad(d->p_alloc);
+	}
 };
 
 class MethodCallAST : public decafAST {
@@ -292,6 +289,29 @@ public:
 			return string("MethodCall") + "(" + name + "," + "None" + ")";
 		}
 	}
+	llvm::Value *Codegen() {
+		llvm::Function *p_func = TheModule->getFunction(name);
+
+		std::vector<llvm::Value *> args;
+        for (auto it = method_arg_list->begin(); it != method_arg_list->end(); it++) {
+            args.push_back((*it)->Codegen());
+            if (!args.back()) { return NULL; }
+        }
+
+		int idx = 0;
+        for (auto it = p_func->arg_begin(); it != p_func->arg_end(); it++) {
+            if (it->getType()->isIntegerTy(32) && args[idx]->getType()->isIntegerTy(1)) {
+                args[idx] = Builder.CreateIntCast(args[idx], Builder.getInt32Ty(), false);
+            }
+            idx++;
+        }
+
+		if (p_func->getReturnType()->isVoidTy()){
+            return Builder.CreateCall(p_func, args);
+        } else {
+			return Builder.CreateCall(p_func, args, "calltmp");
+		}
+	}
 };
 
 class AssignVarAST : public decafAST {
@@ -303,6 +323,21 @@ public:
 		if (val != NULL) { delete val; }
 	}
 	string str() { return string("AssignVar") + "(" + name + "," + getString(val) + ")"; }
+	llvm::Value *Codegen() {
+		descriptor *d = access_symtbl(name);
+		llvm::AllocaInst *p_alloc = d->p_alloc;
+		llvm::Value *value = val->Codegen();
+
+		if ((value->getType()->isIntegerTy(1) == true) && (p_alloc->getType()->isIntegerTy(32) == true)) {
+			value = Builder.CreateZExt(value, Builder.getInt32Ty(), "zexttmp");
+		}
+
+		if (p_alloc->getType() == value->getType()->getPointerTo()) {
+			return Builder.CreateStore(value, p_alloc);
+		}
+
+		return NULL;
+	}
 };
 
 class AssignArrayLocAST : public decafAST {
@@ -546,6 +581,66 @@ public:
 		return (llvm::Value*)p_func;
 	}
 };
+
+
+class PackageAST : public decafAST {
+	string Name;
+	decafStmtList *FieldDeclList;
+	decafStmtList *MethodDeclList;
+public:
+	PackageAST(string name, decafStmtList *fieldlist, decafStmtList *methodlist) 
+		: Name(name), FieldDeclList(fieldlist), MethodDeclList(methodlist) {}
+	~PackageAST() { 
+		if (FieldDeclList != NULL) { delete FieldDeclList; }
+		if (MethodDeclList != NULL) { delete MethodDeclList; }
+	}
+	string str() { 
+		return string("Package") + "(" + Name + "," + getString(FieldDeclList) + "," + getString(MethodDeclList) + ")";
+	}
+	llvm::Value *Codegen() { 
+		llvm::Value *val = NULL;
+		TheModule->setModuleIdentifier(llvm::StringRef(Name)); 
+		if (NULL != FieldDeclList) {
+			val = FieldDeclList->Codegen();
+		}
+		if (NULL != MethodDeclList) {
+			list<decafAST *> stmts = MethodDeclList->getList();
+			for(list<decafAST*>::iterator it = stmts.begin(); it != stmts.end(); it++){
+				MethodAST* method = (MethodAST*)(*it);
+				method->func();
+			}
+			val = MethodDeclList->Codegen();
+		} 
+		// Q: should we enter the class name into the symbol table?
+		return val; 
+	}
+};
+
+/// ProgramAST - the decaf program
+class ProgramAST : public decafAST {
+	decafStmtList *ExternList;
+	PackageAST *PackageDef;
+public:
+	ProgramAST(decafStmtList *externs, PackageAST *c) : ExternList(externs), PackageDef(c) {}
+	~ProgramAST() { 
+		if (ExternList != NULL) { delete ExternList; } 
+		if (PackageDef != NULL) { delete PackageDef; }
+	}
+	string str() { return string("Program") + "(" + getString(ExternList) + "," + getString(PackageDef) + ")"; }
+	llvm::Value *Codegen() { 
+		llvm::Value *val = NULL;
+		if (NULL != ExternList) {
+			val = ExternList->Codegen();
+		}
+		if (NULL != PackageDef) {
+			val = PackageDef->Codegen();
+		} else {
+			throw runtime_error("no package definition in decaf program");
+		}
+		return val; 
+	}
+};
+
 
 class BreakStmtAST : public decafAST {
 	string str() { return string("BreakStmt"); }
