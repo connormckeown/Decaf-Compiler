@@ -190,7 +190,8 @@ method_call: T_ID T_LPAREN method_arg_list_empty T_RPAREN { $$ = new MethodCallA
     ;
 
 
-method_arg_list: method_arg T_COMMA method_arg_list_empty { decafStmtList* list = (decafStmtList*) $3; 
+// method_arg_list? or method_arg_list_empty? as last arg
+method_arg_list: method_arg T_COMMA method_arg_list { decafStmtList* list = (decafStmtList*) $3; 
                                                       list->push_front($1);
                                                       $$ = list; }
     |            method_arg { decafStmtList* list = new decafStmtList();
@@ -198,7 +199,7 @@ method_arg_list: method_arg T_COMMA method_arg_list_empty { decafStmtList* list 
                               $$ = list; }
     ;
 
-method_arg_list_empty: method_arg_list { $$ = $1;}
+method_arg_list_empty: method_arg_list { $$ = $1; }
     |                  { $$ = NULL; }
     ;
 
@@ -334,10 +335,12 @@ method_type_list: method_type_list T_COMMA T_ID decaf_type { decafStmtList* list
 method: T_FUNC T_ID T_LPAREN method_type_list T_RPAREN method_type method_block { decafStmtList* list = new decafStmtList();
                                                                                   MethodAST* method = new MethodAST(*$2, *$6, (decafStmtList*)$4, (MethodBlockAST*)$7);
                                                                                   list->push_front(method);
-                                                                                  $$ = (decafAST*)method;
-                                                                                  // $$ = list;
                                                                                   delete $2;
-                                                                                  delete $6; }
+                                                                                  delete $6;
+                                                                                  $$ = (decafAST*)method; }
+                                                                                  // $$ = list;
+                                                                                  // delete $2;
+                                                                                  // delete $6; }
     ;
 
 method_list: { $$ = NULL; }

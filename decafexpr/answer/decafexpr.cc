@@ -16,6 +16,8 @@ using namespace std;
 
 symbol_table_list symtbl;
 llvm::Value* returnValue;
+bool isAssign = false;
+llvm::Type* assignType;
 
 descriptor* access_symtbl(string ident) {
     for (auto i : symtbl) {
@@ -329,7 +331,7 @@ public:
 
 class MethodCallAST : public decafAST {
 	string name;
-	decafStmtList* method_arg_list = NULL;
+	decafStmtList* method_arg_list;
 public:
 	MethodCallAST(string name, decafStmtList* method_arg_list) : name(name), method_arg_list(method_arg_list) {}
 	~MethodCallAST() {
@@ -343,29 +345,79 @@ public:
 		}
 	}
 	llvm::Value *Codegen() {
-		llvm::Function *p_func = TheModule->getFunction(name);
 
-		assert(p_func != NULL);
+		llvm::Value* val = NULL;
 
-		std::vector<llvm::Value *> args;
-        for (auto it = method_arg_list->begin(); it != method_arg_list->end(); it++) {
-            args.push_back((*it)->Codegen());
-            if (!args.back()) { return NULL; }
-        }
+		descriptor* d = access_symtbl(name);
+		list<decafAST*> stmts;
+		vector<llvm::Value*> arg_values;
+		vector<llvm::Type*> arg_types;
+		llvm::Function *call;
 
-		int idx = 0;
-        for (auto it = p_func->arg_begin(); it != p_func->arg_end(); it++) {
-            if (it->getType()->isIntegerTy(32) && args[idx]->getType()->isIntegerTy(1)) {
-                args[idx] = Builder.CreateIntCast(args[idx], Builder.getInt32Ty(), false);
-            }
-            idx++;
-        }
-
-		if (p_func->getReturnType()->isVoidTy()){
-            return Builder.CreateCall(p_func, args);
-        } else {
-			return Builder.CreateCall(p_func, args, "calltmp");
+		if (method_arg_list != NULL) {
+			stmts = method_arg_list->getList();
 		}
+
+		if (d != NULL) {
+			llvm::Function::arg_iterator args; 
+			vector<string> arg_names;
+		
+			call = d->p_func; 
+			args = call->arg_begin();
+			arg_types = d->arg_types;
+			arg_names = d->arg_names;
+				
+			unsigned int idx = 0;
+			for (list<decafAST*>::iterator it = stmts.begin(); it != stmts.end(); it++) {         
+				llvm::Value* arg_value = (*it)->Codegen();  
+				llvm::Type* arg_type = arg_types[idx];
+					
+				if (arg_value->getType()->isIntegerTy(1) && arg_type->isIntegerTy(32)) {
+					arg_value = Builder.CreateZExt(arg_value, Builder.getInt32Ty(), "zexttmp");  
+				}
+        
+        		arg_values.push_back(arg_value);    
+        		idx++;
+      		}   
+   
+		} else {
+			llvm::Type* arg_type;
+			llvm::Value* arg_value;
+			llvm::Type* return_type;
+
+			for (list<decafAST*>::iterator it = stmts.begin(); it != stmts.end(); it++) {         
+				arg_value = (*it)->Codegen();  
+				arg_type = arg_value->getType();
+        
+				if(arg_value->getType()->isIntegerTy(1) && arg_type->isIntegerTy(32)) {
+					arg_value = Builder.CreateZExt(arg_value, Builder.getInt32Ty(), "zexttmp");  
+				}
+        
+				arg_values.push_back(arg_value);    
+				arg_types.push_back(arg_type); 
+      		}
+
+			if (isAssign == true) {
+				return_type = assignType;
+			} else {
+				return_type = Builder.getVoidTy();
+			}   
+
+			call = llvm::Function::Create(llvm::FunctionType::get(return_type, arg_types, false), llvm::Function::ExternalLinkage, name, TheModule); 
+ 
+      		verifyFunction(*call);
+
+			descriptor *d = new descriptor;
+			d->p_func = call;
+			d->arg_types = arg_types; 
+			d->lineno = lineno;
+			(symtbl.front())[name] = d;
+		}
+
+		bool isVoid = call->getReturnType()->isVoidTy();
+		val = Builder.CreateCall(call, arg_values, isVoid ? "" : "calltmp"); 
+		
+		return val;
 	}
 };
 
@@ -383,6 +435,9 @@ public:
 		llvm::AllocaInst *p_alloc = d->p_alloc;
 		llvm::Value *value = val->Codegen();
 
+		isAssign = true;
+		assignType = p_alloc->getType();
+
 		if ((value->getType()->isIntegerTy(1) == true) && (p_alloc->getType()->isIntegerTy(32) == true)) {
 			value = Builder.CreateZExt(value, Builder.getInt32Ty(), "zexttmp");
 		}
@@ -390,6 +445,8 @@ public:
 		if (p_alloc->getType() == value->getType()->getPointerTo()) {
 			return Builder.CreateStore(value, p_alloc);
 		}
+
+		isAssign = false;
 
 		return NULL;
 	}
@@ -611,7 +668,7 @@ public:
 
 		vector<string> arg_names;
 		vector<llvm::Type*> arg_types;
-		for(list<decafAST*>::iterator it = stmnts.begin(); it != stmnts.end(); it++) {
+		for (list<decafAST*>::iterator it = stmnts.begin(); it != stmnts.end(); it++) {
 			VarDefAST* varDef = (VarDefAST*)(*it);
       		llvm::Type* vdtype = getType(varDef->getVarType());
       		string vdname = varDef->getName(); 
