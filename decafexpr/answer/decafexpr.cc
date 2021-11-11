@@ -349,6 +349,7 @@ public:
 		llvm::Value* val = NULL;
 
 		descriptor* d = access_symtbl(name);
+
 		list<decafAST*> stmts;
 		vector<llvm::Value*> arg_values;
 		vector<llvm::Type*> arg_types;
@@ -554,7 +555,6 @@ public:
 		if (name.empty()) { return NULL; }
 
 		llvm::Type *llvm_type = getType(type);
-		
 		llvm::AllocaInst *p_alloc = NULL;
 
 		if (param == false) {
