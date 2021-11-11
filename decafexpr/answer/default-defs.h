@@ -30,7 +30,7 @@ extern "C"
 	int yywrap(void);
 }
 
-struct struct descriptor {
+typedef struct descriptor {
 	int lineno;
 	string type;
 	llvm::GlobalVariable* p_global;
@@ -43,7 +43,7 @@ struct struct descriptor {
 typedef map<string, descriptor* > symbol_table;
 typedef list<symbol_table > symbol_table_list;
 extern symbol_table_list symtbl;
-extern descriptor* access_symtbl(string id);
+extern descriptor* access_symtbl(string ident);
 
 
 

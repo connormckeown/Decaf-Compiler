@@ -14,7 +14,7 @@ int yylex(void);
 int yyerror(char *); 
 
 // print AST?
-bool printAST = true;
+bool printAST = false;
 
 using namespace std;
 
@@ -122,12 +122,12 @@ extern_list: extern_def extern_list { decafStmtList* list;
     ;
 
 extern_typelist: extern_type T_COMMA extern_typelist { decafStmtList* list = (decafStmtList*)$3;
-                                                       VarDefAST* var = new VarDefAST(string("extern"), *$1);
+                                                       VarDefAST* var = new VarDefAST(true, string("extern"), *$1);
                                                        list->push_front(var);
                                                        $$ = list;
                                                        delete $1; }
     |            extern_type { decafStmtList* list = new decafStmtList();
-                               VarDefAST* var = new VarDefAST(string("extern"), *$1);
+                               VarDefAST* var = new VarDefAST(true, string("extern"), *$1);
                                list->push_front(var);
                                $$ = list;
                                delete $1; }
@@ -140,7 +140,17 @@ extern_def: T_EXTERN T_FUNC T_ID T_LPAREN T_RPAREN method_type T_SEMICOLON { $$ 
                                                                                              delete $7; }
     ;
 
-decafpackage: T_PACKAGE T_ID T_LCB field_decl_list method_list T_RCB
+begin_block: T_LCB { symtbl.push_front(symbol_table()); }
+    ;
+
+end_block: T_RCB { symbol_table st = symtbl.front();
+                   for(symbol_table::iterator it = st.begin(); it != st.end(); it++) {
+                        delete(it->second);
+                   }
+                   symtbl.pop_front(); }
+    ;
+
+decafpackage: T_PACKAGE T_ID begin_block field_decl_list method_list end_block
     { $$ = new PackageAST(*$2, (decafStmtList*)$4, (decafStmtList*)$5); delete $2; }
     ;
 
@@ -161,16 +171,18 @@ bool_constant: T_TRUE { $$ = new ConstantAST(string("BoolExpr"), string("True"))
     ;
 
 method_arg: expr { $$ = $1; }
-    |       T_STRINGCONSTANT { $$ = new ConstantAST(string("StringConstant"), *$1); delete $1; }
+    |       T_STRINGCONSTANT { $$ = new ConstantAST(string("StringConstant"), *$1); 
+                               descriptor *d = access_symtbl(*$1);
+                               delete $1; }
     ;
 
 constant: T_INTCONSTANT { $$ = new ConstantAST(string("NumberExpr"), *$1); delete $1; }
-    |     T_CHARCONSTANT { $$ = new ConstantAST(string("NumberExpr"), strtoascii(*$1)); delete $1; }
+    |     T_CHARCONSTANT { descriptor* d = access_symtbl(*$1); $$ = new ConstantAST(string("NumberExpr"), strtoascii(*$1)); delete $1; }
     |     bool_constant { $$ = $1; }
     ;
 
-rvalue: T_ID T_LSB expr T_RSB { $$ = new ArrayLocExprAST(*$1, (decafStmtList*) $3); delete $1; }
-    |   T_ID { $$ = new VariableExprAST(*$1); delete $1; }
+rvalue: T_ID T_LSB expr T_RSB { descriptor *d = access_symtbl(*$1); $$ = new ArrayLocExprAST(*$1, (decafStmtList*) $3); delete $1; }
+    |   T_ID { descriptor *d = access_symtbl(*$1); $$ = new VariableExprAST(*$1); delete $1; }
     ;
 
 /* T_ID T_LPAREN T_RPAREN { $$ = new MethodCallAST(*$1, NULL); } */
@@ -254,7 +266,7 @@ var_decl_list: var_decl var_decl_list { decafStmtList* list;
 var_decl: T_VAR identifier_list decaf_type T_SEMICOLON { IdListAST* list = (IdListAST*)$2;
                                                          decafStmtList* list2 = new decafStmtList();
                                                          for (vector<string>::iterator it = (*list).vec.begin(); it != (*list).vec.end(); ++it) {
-                                                             VarDefAST* var = new VarDefAST((*it), *$3);
+                                                             VarDefAST* var = new VarDefAST(false, (*it), *$3);
                                                              list2->push_front(var);
                                                          }
                                                          $$ = list2; }
@@ -306,13 +318,13 @@ method_block: T_LCB var_decl_list statement_list T_RCB { $$ = new MethodBlockAST
     ;
 
 method_type_list: method_type_list T_COMMA T_ID decaf_type { decafStmtList* list = new decafStmtList();
-                                                             VarDefAST* var = new VarDefAST(*$3, *$4); 
+                                                             VarDefAST* var = new VarDefAST(true, *$3, *$4); 
                                                              list->push_front(var);
                                                              list->push_front($1);
                                                              $$ = list;
                                                              delete $3; }
     |             T_ID decaf_type { decafStmtList* list = new decafStmtList();
-                                    VarDefAST* var = new VarDefAST(*$1, *$2);
+                                    VarDefAST* var = new VarDefAST(true, *$1, *$2);
                                     list->push_front(var);
                                     $$ = list;
                                     delete $1; }
@@ -322,7 +334,8 @@ method_type_list: method_type_list T_COMMA T_ID decaf_type { decafStmtList* list
 method: T_FUNC T_ID T_LPAREN method_type_list T_RPAREN method_type method_block { decafStmtList* list = new decafStmtList();
                                                                                   MethodAST* method = new MethodAST(*$2, *$6, (decafStmtList*)$4, (MethodBlockAST*)$7);
                                                                                   list->push_front(method);
-                                                                                  $$ = list;
+                                                                                  $$ = (decafAST*)method;
+                                                                                  // $$ = list;
                                                                                   delete $2;
                                                                                   delete $6; }
     ;
@@ -350,7 +363,7 @@ statement_list: statement statement_list { decafStmtList* list;
     |           { $$ = NULL; }
     ;
 
-block: T_LCB var_decl_list statement_list T_RCB { $$ = new BlockAST((decafStmtList*)$2, (decafStmtList*)$3); }
+block: begin_block var_decl_list statement_list end_block { $$ = new BlockAST((decafStmtList*)$2, (decafStmtList*)$3); }
     ;
 
 statement: assign T_SEMICOLON { $$ = $1; }
@@ -373,8 +386,10 @@ statement: assign T_SEMICOLON { $$ = $1; }
 int main() {
   // initialize LLVM
   llvm::LLVMContext &Context = TheContext;
+
   // Make the module, which holds all the code.
   TheModule = new llvm::Module("Test", Context);
+  
   // set up symbol table
   symtbl.push_front(symbol_table());
   // set up dummy main function
@@ -391,7 +406,7 @@ int main() {
   symbol_table symtbl_front = symtbl.front();
 
   // free head
-  for(symbol_table::iterator it = symtbl_front.begin(); it != symtbl_front.end(); it++) {
+  for (symbol_table::iterator it = symtbl_front.begin(); it != symtbl_front.end(); it++) {
     delete(it->second);
   }
 

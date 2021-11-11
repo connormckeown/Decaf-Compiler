@@ -83,6 +83,18 @@ string strtoascii(string s) {
 	return to_string(c);
 }
 
+int strtoint(string s){
+	int result;
+	stringstream stringStream;
+	if (s.find("x") != string::npos) {
+		stringStream << hex << s;
+	} else {
+		stringStream << s;
+	}
+	stringStream >> result;
+	return result;
+}
+
 template <class T>
 string commaList(list<T> vec) {
     string s("");
@@ -157,8 +169,8 @@ public:
 		for (symbol_table::iterator it = st.begin(); it != st.end(); it++) {
 			delete(it->second);
 		}
-
 		symtbl.pop_front();
+
 		return NULL;
 	}
 };
@@ -169,6 +181,47 @@ class ConstantAST : public decafAST {
 public:
 	ConstantAST(string type, string val) : type(type), val(val) {}
 	string str() { return type + "(" + val + ")"; }
+	llvm::Value *Codegen() { 
+		llvm::Constant *Const = NULL;
+
+		if (type == "NumberExpr") { 
+			Const = Builder.getInt32(strtoint(val));
+
+		} else if (type == "BoolExpr") {
+			if (val == "True") { Const = Builder.getInt1(1); }
+			if (val == "False") { Const = Builder.getInt1(0); }
+
+			return (llvm::Value*)Const;
+
+		} else if (type == "StringConstant") {
+			string s = "";
+
+			for (int i = 1; i < val.length()-1; i++) {
+				if (val[i] != '\\') {
+					s.push_back(val[i]);
+				}
+				else {
+					switch(val[i+1]){
+						case 'a':  s.push_back('\a'); break;
+      					case 'b':  s.push_back('\b'); break;
+      					case 't':  s.push_back('\t'); break;
+						case 'n':  s.push_back('\n'); break;
+						case 'v':  s.push_back('\v'); break;
+						case 'f':  s.push_back('\f'); break;
+						case 'r':  s.push_back('\r'); break;
+						case '\\': s.push_back('\\'); break;
+						case '\'': s.push_back('\''); break;
+						case '\"': s.push_back('\"'); break;
+					}
+					i++;
+				}
+			}
+			llvm::GlobalVariable *GV = Builder.CreateGlobalString(s.c_str(), "globalstring");
+			return Builder.CreateConstGEP2_32(GV->getValueType(), GV, 0, 0, "cast");
+		}
+
+		return (llvm::Value*)Const;
+	}
 };
 
 class BinaryExprAST : public decafAST {
@@ -292,6 +345,8 @@ public:
 	llvm::Value *Codegen() {
 		llvm::Function *p_func = TheModule->getFunction(name);
 
+		assert(p_func != NULL);
+
 		std::vector<llvm::Value *> args;
         for (auto it = method_arg_list->begin(); it != method_arg_list->end(); it++) {
             args.push_back((*it)->Codegen());
@@ -351,6 +406,7 @@ public:
 		if (val != NULL) { delete val; }
 	}
 	string str() { return string("AssignArrayLoc") + "(" + name + "," + getString(index) + "," + getString(val) + ")"; }
+	llvm::Value *Codegen() { return NULL; } 
 };
 
 class IfStmtAST : public decafAST {
@@ -371,6 +427,7 @@ public:
 			return string("IfStmt") + "(" + condition->str() + "," + if_block->str() + "," + "None" + ")";
 		}
 	}
+	llvm::Value *Codegen() { return NULL; }
 };
 
 class WhileStmtAST : public decafAST {
@@ -383,6 +440,7 @@ public:
 		if (while_block != NULL) { delete while_block; }
 	}
 	string str() { return string("WhileStmt") + "(" + condition->str() + "," + while_block->str() + ")"; }
+	llvm::Value *Codegen() { return NULL; }
 };
 
 class ForStmtAST : public decafAST {
@@ -400,6 +458,7 @@ public:
 		if (for_block != NULL) { delete for_block; }
 	}
 	string str() { return string("ForStmt") + "(" + pre_assign_list->str() + "," + condition->str() + "," + loop_assign_list->str() + "," + for_block->str() + ")"; }
+	llvm::Value *Codegen() { return NULL; }
 };
 
 class ReturnStmtAST : public decafAST {
@@ -415,23 +474,43 @@ public:
 		} else {
 			return string("ReturnStmt") + "(" + "None" + ")";
 		}
-		
 	}
+	llvm::Value *Codegen() { return NULL; }
 };
 
 class VarDefAST : public decafAST {
+	bool param;
 	string name;
 	string type;
 public:
-	VarDefAST(string name, string type) : name(name), type(type) {}
+	VarDefAST(bool param, string name, string type) : param(param), name(name), type(type) {}
 	string getName() { return name; }
-	string getType() { return type; }
+	string getVarType() { return type; }
 	string str() {
 		if (name.compare("extern") != 0) {
 			return string("VarDef") + "(" + name + "," + type + ")";
 		} else {
 			return string("VarDef") + "(" + type + ")"; 
 		}
+	}
+	llvm::Value *Codegen() {
+		if (name.empty()) { return NULL; }
+
+		llvm::Type *llvm_type = getType(type);
+		
+		llvm::AllocaInst *p_alloc = NULL;
+
+		if (param == false) {
+			p_alloc = Builder.CreateAlloca(llvm_type, NULL, name);
+		}
+
+		descriptor* d = new descriptor;
+		d->type = type;
+		d->lineno = lineno;
+		d->p_alloc = p_alloc;
+		(symtbl.front())[name] = d;
+
+		return (llvm::Value*)p_alloc;
 	}
 };
 
@@ -450,6 +529,33 @@ public:
 			return string("FieldDecl") + "(" + name + "," + type + "," + size + ")";
 		}
 	}
+	llvm::Value *Codegen() {
+		llvm::Constant* Initializer;
+		llvm::Type* llvm_type = getType(type);
+
+		if (constant) {
+			Initializer = (llvm::Constant*)constant->Codegen();
+		} else {
+			if (llvm_type->isIntegerTy(32)) {
+				Initializer = Builder.getInt32(0);
+			} else if (llvm_type->isVoidTy()) {
+				Initializer = NULL;
+			} else if (llvm_type->isIntegerTy(1)) {
+				Initializer = Builder.getInt1(0);
+			}
+		}
+		
+
+		llvm::GlobalVariable *GV = new llvm::GlobalVariable(*TheModule, llvm_type, false, llvm::GlobalValue::InternalLinkage, Initializer, name);
+
+		descriptor* d = new descriptor;
+		d->lineno = lineno;
+		d->type = type;
+		d->p_global = GV;
+
+		(symtbl.front())[name] = d;
+		return GV;
+	}
 };
 
 class MethodBlockAST : public decafAST {
@@ -462,6 +568,19 @@ public:
 		if (statement_list != NULL) { delete statement_list; }
 	}
 	string str() { return string("MethodBlock") + "(" + getString(var_decl_list) + "," + getString(statement_list) + ")"; }
+	llvm::Value *Codegen() {
+		symtbl.push_front(symbol_table());
+		if(var_decl_list != NULL) { var_decl_list->Codegen(); }
+		if(statement_list != NULL) { statement_list->Codegen(); }
+
+		symbol_table st = symtbl.front();
+		for (symbol_table::iterator it = st.begin(); it != st.end(); it++){
+			delete(it->second);
+		}
+
+		symtbl.pop_front();
+		return NULL;
+	}
 };
 
 class MethodAST : public decafAST {
@@ -480,9 +599,12 @@ public:
 	llvm::Function *func() {
 		llvm::Function *p_func;
 		list<decafAST*> stmnts;
-		llvm::Type *return_type = getType(type);
+		llvm::Type *return_type; 
+		return_type = getType(type);
 
-		if(param_list != NULL){
+		assert(return_type != NULL);
+
+		if (param_list != NULL) {
 			stmnts = param_list->getList();
 			param_list->Codegen();
 		}
@@ -491,7 +613,7 @@ public:
 		vector<llvm::Type*> arg_types;
 		for(list<decafAST*>::iterator it = stmnts.begin(); it != stmnts.end(); it++) {
 			VarDefAST* varDef = (VarDefAST*)(*it);
-      		llvm::Type* vdtype = getType(varDef->getType());
+      		llvm::Type* vdtype = getType(varDef->getVarType());
       		string vdname = varDef->getName(); 
 			arg_types.push_back(vdtype);  
       		arg_names.push_back(vdname);
@@ -531,7 +653,7 @@ public:
 		vector<string> arg_names;
 		for(list<decafAST*>:: iterator it = stmnts.begin(); it != stmnts.end(); it++){
 			VarDefAST* varDef = (VarDefAST*)(*it);
-			llvm::Type* vdtype = getType(varDef->getType());
+			llvm::Type* vdtype = getType(varDef->getVarType());
 			string vdname = varDef->getName();
 			arg_names.push_back(vdname);
 			arg_types.push_back(vdtype);
@@ -644,10 +766,12 @@ public:
 
 class BreakStmtAST : public decafAST {
 	string str() { return string("BreakStmt"); }
+	llvm::Value *Codegen() { return NULL; }
 };
 
 class ContinueStmtAST : public decafAST {
 	string str() { return string("ContinueStmt"); }
+	llvm::Value *Codegen() { return NULL; }
 };
 
 class IdListAST : public decafAST {
@@ -658,6 +782,7 @@ public:
 	}
 	~IdListAST() {}
 	string str() { return *(vec.begin()); }
+	llvm::Value *Codegen() { return NULL; }
 };
 
 class ExternFunctionAST : public decafAST {
@@ -671,4 +796,37 @@ public:
 		if (type_list != NULL) { delete type_list; }
 	}
 	string str() { return string("ExternFunction") + "(" + name + "," + return_type + "," + getString(type_list) + ")"; }
+	llvm::Value *Codegen() {
+		llvm::Type *ret_type = getType(return_type);
+		std::vector<llvm::Type*> args;
+
+		if (type_list != NULL) {
+			list<decafAST*> stmts = type_list->getList();
+			llvm::Type* retType;
+
+			for (list<decafAST*>::iterator it = stmts.begin(); it != stmts.end(); it++) {
+				string type = ((VarDefAST*)(*it))->getVarType();
+				if (type.empty()) { 
+					args.clear(); 
+					break; 
+				} else { 
+					retType = getType(type);
+				}
+				args.push_back(retType);
+			}
+		}
+
+		llvm::Function *p_func = llvm::Function::Create(llvm::FunctionType::get(ret_type, args, false), llvm::Function::ExternalLinkage, name, TheModule);
+		verifyFunction(*p_func);
+		llvm::Value *val = (llvm::Value*)p_func;
+
+		descriptor* d = new descriptor;
+		d->lineno = lineno;
+		d->p_func = p_func;
+		d->type = return_type;
+		d->arg_types = args;
+
+		(symtbl.front())[name] = d;
+		return val;
+	}
 };
