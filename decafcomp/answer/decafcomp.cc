@@ -485,7 +485,35 @@ public:
 			return string("IfStmt") + "(" + condition->str() + "," + if_block->str() + "," + "None" + ")";
 		}
 	}
-	llvm::Value *Codegen() { return NULL; }
+	llvm::Value *Codegen() { 
+		llvm::Function *p_func = Builder.GetInsertBlock()->getParent();
+	
+		llvm::BasicBlock* IfBB = llvm::BasicBlock::Create(TheContext, "if", p_func);
+		llvm::BasicBlock* IfTrueBB = llvm::BasicBlock::Create(TheContext, "iftrue", p_func);
+		llvm::BasicBlock* IfFalseBB = llvm::BasicBlock::Create(TheContext, "iffalse", p_func);
+		llvm::BasicBlock* EndBB = llvm::BasicBlock::Create(TheContext, "end", p_func);     
+
+		Builder.CreateBr(IfBB);
+		Builder.SetInsertPoint(IfBB);
+
+		llvm::Value* cond = condition->Codegen();
+
+		Builder.CreateCondBr(cond, IfTrueBB, IfFalseBB);
+		Builder.SetInsertPoint(IfTrueBB);
+
+		if_block->Codegen();	// always do the if portion
+		Builder.CreateBr(EndBB);
+		Builder.SetInsertPoint(IfFalseBB);
+
+		if (else_block) {
+			else_block->Codegen();
+		}
+
+		Builder.CreateBr(EndBB);
+		Builder.SetInsertPoint(EndBB);  
+
+		return NULL;
+	}
 };
 
 class WhileStmtAST : public decafAST {
