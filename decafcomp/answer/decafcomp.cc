@@ -19,7 +19,7 @@ llvm::Value* returnValue;
 bool isAssign = false;
 llvm::Type* assignType;
 
-descriptor* access_symtbl(string ident) {
+llvm::Value* access_symtbl(string ident) {
     for (auto i : symtbl) {
         auto find_ident = i.find(ident);
         if (find_ident != i.end()) {
@@ -168,9 +168,6 @@ public:
 		if (statement_list != NULL) { statement_list->Codegen(); }
 
 		symbol_table st = symtbl.front();
-		for (symbol_table::iterator it = st.begin(); it != st.end(); it++) {
-			delete(it->second);
-		}
 		symtbl.pop_front();
 
 		return NULL;
@@ -257,8 +254,26 @@ public:
 		return string("BinaryExpr") + "(" + res + "," + LHS->str() + "," + RHS->str() + ")";
 	}
 	llvm::Value *Codegen() {
-		llvm::Value* lval = LHS->Codegen();
-		llvm::Value* rval = RHS->Codegen();
+		// llvm::Value* lval = LHS->Codegen();
+		// llvm::Value* rval = RHS->Codegen();
+		llvm::Value* lval;
+    	llvm::Value* rval;
+
+		llvm::BasicBlock *CurBB;
+		llvm::BasicBlock* RBB;
+		llvm::Function *func;
+		llvm::BasicBlock* MergeBB;
+		llvm::PHINode* phi;
+
+		if ((op.compare("T_AND") != 0) && (op.compare("T_OR") != 0)) {
+			lval = LHS->Codegen();
+      		rval = RHS->Codegen();
+		} else {
+			CurBB = Builder.GetInsertBlock();
+			func = CurBB->getParent();
+			RBB = llvm::BasicBlock::Create(TheContext, "rval", func); 
+			MergeBB = llvm::BasicBlock::Create(TheContext, "merge", func); 
+		}
 
 		if(op.compare("T_MULT") == 0) { return Builder.CreateMul(lval, rval, "multmp"); }
 		if(op.compare("T_DIV") == 0) { return Builder.CreateSDiv(lval, rval, "divtmp"); }
@@ -273,8 +288,40 @@ public:
 		if(op.compare("T_LEQ") == 0) { return Builder.CreateICmpSLE(lval, rval, "leqtmp"); }
 		if(op.compare("T_GT") == 0) { return Builder.CreateICmpSGT(lval, rval, "gttmp"); }
 		if(op.compare("T_LT") == 0) { return Builder.CreateICmpSLT(lval, rval, "lttmp"); }
-		if(op.compare("T_AND") == 0) { return Builder.CreateAnd(lval, rval, "andtmp"); }
-		if(op.compare("T_OR") == 0) { return Builder.CreateOr(lval, rval, "ortmp"); }
+		if(op.compare("T_AND") == 0) { 
+			// return Builder.CreateAnd(lval, rval, "andtmp");
+
+			lval = LHS->Codegen();
+			Builder.CreateCondBr(lval, RBB, MergeBB);
+			Builder.SetInsertPoint(RBB);
+			rval = RHS->Codegen();
+			RBB = Builder.GetInsertBlock();
+			Builder.CreateBr(MergeBB);        
+	
+			Builder.SetInsertPoint(MergeBB);                     
+			phi = Builder.CreatePHI(lval->getType(), 2, "phival"); 
+			phi->addIncoming(lval, CurBB);
+			phi->addIncoming(rval, RBB);
+	
+			return (llvm::Value*)phi;
+		}
+		if(op.compare("T_OR") == 0) { 
+			//return Builder.CreateOr(lval, rval, "ortmp");
+
+			lval = LHS->Codegen();
+			Builder.CreateCondBr(lval, MergeBB, RBB);
+			Builder.SetInsertPoint(RBB);
+			rval = RHS->Codegen();
+			RBB = Builder.GetInsertBlock();
+			Builder.CreateBr(MergeBB);        
+
+			Builder.SetInsertPoint(MergeBB);                     
+			phi = Builder.CreatePHI(lval->getType(), 2, "phival"); 
+			phi->addIncoming(lval, CurBB);
+			phi->addIncoming(rval, RBB);
+			
+			return (llvm::Value*)phi;
+		}
 
 		return NULL;
 	}
@@ -310,10 +357,11 @@ class VariableExprAST : public decafAST {
 	string name;
 public:
 	VariableExprAST(string name) : name(name) {}
+	string getName() { return name; }
 	string str() { return string("VariableExpr") + "(" + name + ")"; }
 	llvm::Value *Codegen() {
-		descriptor* d = access_symtbl(name);
-		return Builder.CreateLoad(d->p_alloc);
+		llvm::Value* val = access_symtbl(name);
+		return Builder.CreateLoad(val, name);
 	}
 };
 
@@ -322,10 +370,19 @@ class ArrayLocExprAST : public decafAST {
 	decafStmtList* index;
 public:
 	ArrayLocExprAST(string name, decafStmtList* index) : name(name), index(index) {}
+	string getName() { return name; }
 	string str() { return string("ArrayLocExpr") + "(" + name + "," + getString(index) + ")"; }
 	llvm::Value *Codegen() {
-		descriptor* d = access_symtbl(name);
-		return Builder.CreateLoad(d->p_alloc);
+
+		llvm::Value* val = access_symtbl(name);
+
+		llvm::GlobalVariable *GV = (llvm::GlobalVariable*)val;
+    	llvm::ArrayType *arrayi32 = (llvm::ArrayType*)GV->getType();
+    	llvm::Value *ArrayLoc = Builder.CreateStructGEP(arrayi32, GV, 0, "arrayloc");
+    	llvm::Value *i = index->Codegen();
+    	llvm::Value *ArrayIndex = Builder.CreateGEP(arrayi32->getElementType(), ArrayLoc, i, "arrayindex");
+
+		return Builder.CreateLoad(ArrayIndex, "loadtmp");
 	}
 };
 
@@ -345,80 +402,28 @@ public:
 		}
 	}
 	llvm::Value *Codegen() {
-
-		llvm::Value* val = NULL;
-
-		descriptor* d = access_symtbl(name);
-
-		list<decafAST*> stmts;
-		vector<llvm::Value*> arg_values;
-		vector<llvm::Type*> arg_types;
-		llvm::Function *call;
-
-		if (method_arg_list != NULL) {
-			stmts = method_arg_list->getList();
-		}
-
-		if (d != NULL) {
-			llvm::Function::arg_iterator args; 
-			vector<string> arg_names;
+		llvm::Function *p_func = TheModule->getFunction(name);
 		
-			call = d->p_func; 
-			args = call->arg_begin();
-			arg_types = d->arg_types;
-			arg_names = d->arg_names;
-				
-			unsigned int idx = 0;
-			for (list<decafAST*>::iterator it = stmts.begin(); it != stmts.end(); it++) {         
-				llvm::Value* arg_value = (*it)->Codegen();  
-				llvm::Type* arg_type = arg_types[idx];
-					
-				if (arg_value->getType()->isIntegerTy(1) && arg_type->isIntegerTy(32)) {
-					arg_value = Builder.CreateZExt(arg_value, Builder.getInt32Ty(), "zexttmp");  
-				}
-        
-        		arg_values.push_back(arg_value);    
-        		idx++;
-      		}   
-   
-		} else {
-			llvm::Type* arg_type;
-			llvm::Value* arg_value;
-			llvm::Type* return_type;
+        std::vector<llvm::Value*> args;
+        for (auto it = method_arg_list->begin(); it != method_arg_list->end(); it++) {
+            args.push_back((*it)->Codegen());
+            if (!args.back()) {
+                return NULL;
+            }
+        }
 
-			for (list<decafAST*>::iterator it = stmts.begin(); it != stmts.end(); it++) {         
-				arg_value = (*it)->Codegen();  
-				arg_type = arg_value->getType();
-        
-				if(arg_value->getType()->isIntegerTy(1) && arg_type->isIntegerTy(32)) {
-					arg_value = Builder.CreateZExt(arg_value, Builder.getInt32Ty(), "zexttmp");  
-				}
-        
-				arg_values.push_back(arg_value);    
-				arg_types.push_back(arg_type); 
-      		}
-
-			if (isAssign == true) {
-				return_type = assignType;
-			} else {
-				return_type = Builder.getVoidTy();
-			}   
-
-			call = llvm::Function::Create(llvm::FunctionType::get(return_type, arg_types, false), llvm::Function::ExternalLinkage, name, TheModule); 
- 
-      		verifyFunction(*call);
-
-			descriptor *d = new descriptor;
-			d->p_func = call;
-			d->arg_types = arg_types; 
-			d->lineno = lineno;
-			(symtbl.front())[name] = d;
-		}
-
-		bool isVoid = call->getReturnType()->isVoidTy();
-		val = Builder.CreateCall(call, arg_values, isVoid ? "" : "calltmp"); 
+        int count = 0;
+        for (auto it = p_func->arg_begin(); it != p_func->arg_end(); it++) {
+            if (it->getType()->isIntegerTy(32) && args[count]->getType()->isIntegerTy(1)) {
+                args[count] = Builder.CreateIntCast(args[count], Builder.getInt32Ty(), false);
+            }
+            count++;
+        }
+        if (p_func->getReturnType()->isVoidTy()) {
+            return Builder.CreateCall(p_func, args);
+        }
+        return Builder.CreateCall(p_func, args, "calltmp");
 		
-		return val;
 	}
 };
 
@@ -432,23 +437,18 @@ public:
 	}
 	string str() { return string("AssignVar") + "(" + name + "," + getString(val) + ")"; }
 	llvm::Value *Codegen() {
-		descriptor *d = access_symtbl(name);
-		llvm::AllocaInst *p_alloc = d->p_alloc;
-		llvm::Value *value = val->Codegen();
+		
+		llvm::Value *value = NULL; 
+		llvm::Value *right = val->Codegen(); 
+    	llvm::Value *left = access_symtbl(name);
 
-		isAssign = true;
-		assignType = p_alloc->getType();
-
-		if ((value->getType()->isIntegerTy(1) == true) && (p_alloc->getType()->isIntegerTy(32) == true)) {
-			value = Builder.CreateZExt(value, Builder.getInt32Ty(), "zexttmp");
+		if ((right->getType()->isIntegerTy(1) == true) && (left->getType()->isIntegerTy(32) == true)) {
+			right = Builder.CreateZExt(value, Builder.getInt32Ty(), "zexttmp");
 		}
 
-		if (p_alloc->getType() == value->getType()->getPointerTo()) {
-			return Builder.CreateStore(value, p_alloc);
+		if (left->getType() == right->getType()->getPointerTo()) {
+			return Builder.CreateStore(right, left);
 		}
-
-		isAssign = false;
-
 		return NULL;
 	}
 };
@@ -464,15 +464,37 @@ public:
 		if (val != NULL) { delete val; }
 	}
 	string str() { return string("AssignArrayLoc") + "(" + name + "," + getString(index) + "," + getString(val) + ")"; }
-	llvm::Value *Codegen() { return NULL; } 
+	llvm::Value *Codegen() {
+		llvm::Value *value = NULL; 
+		llvm::Value *right;
+    	llvm::Value *left;	
+		llvm::GlobalVariable *GV = (llvm::GlobalVariable*)left;
+    	llvm::ArrayType *arrayi32 = (llvm::ArrayType*)GV->getType();
+    	llvm::Value *ArrayLoc = Builder.CreateStructGEP(arrayi32, GV, 0, "arrayloc");
+    	llvm::Value *indexValue = (index)->Codegen();
+    	llvm::Value *ArrayIndex = Builder.CreateGEP(arrayi32->getElementType(), ArrayLoc, indexValue, "arrayindex");
+
+    	left = ArrayIndex;
+		right = index->Codegen();
+
+		if ((right->getType()->isIntegerTy(1) == true) && (left->getType()->isIntegerTy(32) == true)) {  
+      		right = Builder.CreateZExt(right, Builder.getInt32Ty(), "zexttmp");    
+   		}
+
+    	const llvm::PointerType *ptrTy = right->getType()->getPointerTo();
+    	if (left->getType() == ptrTy) {
+      		value = Builder.CreateStore(right, left);
+    	}    
+		return value;          
+	} 
 };
 
 class IfStmtAST : public decafAST {
 	decafAST* condition;
-	decafAST* if_block;
-	decafAST* else_block;
+	BlockAST* if_block;
+	BlockAST* else_block;
 public:
-	IfStmtAST(decafAST* condition, decafAST* if_block, decafAST* else_block) : condition(condition), if_block(if_block), else_block(else_block) {}
+	IfStmtAST(decafAST* condition, BlockAST* if_block, BlockAST* else_block) : condition(condition), if_block(if_block), else_block(else_block) {}
 	~IfStmtAST() {
 		if (condition != NULL) { delete condition; }
 		if (if_block != NULL) { delete if_block; }
@@ -485,9 +507,8 @@ public:
 			return string("IfStmt") + "(" + condition->str() + "," + if_block->str() + "," + "None" + ")";
 		}
 	}
-	llvm::Value *Codegen() { 
+	llvm::Value *Codegen() {
 		llvm::Function *p_func = Builder.GetInsertBlock()->getParent();
-	
 		llvm::BasicBlock* IfBB = llvm::BasicBlock::Create(TheContext, "if", p_func);
 		llvm::BasicBlock* IfTrueBB = llvm::BasicBlock::Create(TheContext, "iftrue", p_func);
 		llvm::BasicBlock* IfFalseBB = llvm::BasicBlock::Create(TheContext, "iffalse", p_func);
@@ -518,24 +539,51 @@ public:
 
 class WhileStmtAST : public decafAST {
 	decafAST* condition;
-	decafAST* while_block;
+	BlockAST* while_block;
 public:
-	WhileStmtAST(decafAST* condition, decafAST* while_block) : condition(condition), while_block(while_block) {}
+	WhileStmtAST(decafAST* condition, BlockAST* while_block) : condition(condition), while_block(while_block) {}
 	~WhileStmtAST() {
 		if (condition != NULL) { delete condition; }
 		if (while_block != NULL) { delete while_block; }
 	}
 	string str() { return string("WhileStmt") + "(" + condition->str() + "," + while_block->str() + ")"; }
-	llvm::Value *Codegen() { return NULL; }
+	llvm::Value *Codegen() { 
+		llvm::BasicBlock *CurBB = Builder.GetInsertBlock();
+		llvm::Function *p_func = CurBB->getParent();
+	
+		llvm::BasicBlock* WhileStartBB = llvm::BasicBlock::Create(TheContext, "0_whilestart", p_func);
+		llvm::BasicBlock* WhileTrueBB = llvm::BasicBlock::Create(TheContext, "0_whiletrue", p_func);
+		llvm::BasicBlock* WhileEndBB = llvm::BasicBlock::Create(TheContext, "0_whileend", p_func);     
+
+		(symtbl.front())["0_loopstart"] = WhileStartBB;
+		(symtbl.front())["0_looptrue"] = WhileTrueBB; 
+		(symtbl.front())["0_loopend"] = WhileEndBB;
+		
+		Builder.CreateBr(WhileStartBB);
+		Builder.SetInsertPoint(WhileStartBB);
+		llvm::Value* cond = condition->Codegen();
+		Builder.CreateCondBr(cond, WhileTrueBB, WhileEndBB);
+		
+		Builder.SetInsertPoint(WhileTrueBB);
+		while_block->Codegen(); 
+		Builder.CreateBr(WhileStartBB);   
+
+		Builder.SetInsertPoint(WhileEndBB);
+		(symtbl.front()).erase("0_loopstart");
+		(symtbl.front()).erase("0_looptrue") ;
+		(symtbl.front()).erase("0_loopend");
+
+		return NULL;
+	}
 };
 
 class ForStmtAST : public decafAST {
-	decafAST* pre_assign_list;
+	AssignVarAST* pre_assign_list;
 	decafAST* condition;
-	decafAST* loop_assign_list;
-	decafAST* for_block;
+	AssignVarAST* loop_assign_list;
+	BlockAST* for_block;
 public:
-	ForStmtAST(decafAST* pre_assign_list, decafAST* condition, decafAST* loop_assign_list, decafAST* for_block) 
+	ForStmtAST(AssignVarAST* pre_assign_list, decafAST* condition, AssignVarAST* loop_assign_list, BlockAST* for_block) 
 		: pre_assign_list(pre_assign_list), condition(condition), loop_assign_list(loop_assign_list), for_block(for_block) {}
 	~ForStmtAST() {
 		if (pre_assign_list != NULL) { delete pre_assign_list; }
@@ -544,7 +592,34 @@ public:
 		if (for_block != NULL) { delete for_block; }
 	}
 	string str() { return string("ForStmt") + "(" + pre_assign_list->str() + "," + condition->str() + "," + loop_assign_list->str() + "," + for_block->str() + ")"; }
-	llvm::Value *Codegen() { return NULL; }
+	llvm::Value *Codegen() {
+		
+		llvm::Function *p_func = Builder.GetInsertBlock()->getParent();
+		llvm::BasicBlock* ForBB = llvm::BasicBlock::Create(TheContext, "for", p_func);
+		llvm::BasicBlock* ForBodyBB = llvm::BasicBlock::Create(TheContext, "forbody", p_func);
+		llvm::BasicBlock* ForAssignBB = llvm::BasicBlock::Create(TheContext, "forassign", p_func);
+		llvm::BasicBlock* ForEndBB = llvm::BasicBlock::Create(TheContext, "forend", p_func);     
+
+		pre_assign_list->Codegen();
+		Builder.CreateBr(ForBB);
+		Builder.SetInsertPoint(ForBB);
+
+		llvm::Value* cond = condition->Codegen();
+
+		Builder.CreateCondBr(cond, ForBodyBB, ForEndBB);
+		Builder.SetInsertPoint(ForBodyBB);
+
+		for_block->Codegen();
+
+		Builder.CreateBr(ForAssignBB);
+		Builder.SetInsertPoint(ForAssignBB); 
+
+		loop_assign_list->Codegen();
+		Builder.CreateBr(ForBB);
+		Builder.SetInsertPoint(ForEndBB);
+
+		return ForEndBB;
+	}
 };
 
 class ReturnStmtAST : public decafAST {
@@ -561,7 +636,16 @@ public:
 			return string("ReturnStmt") + "(" + "None" + ")";
 		}
 	}
-	llvm::Value *Codegen() { return NULL; }
+	llvm::Value *Codegen() {
+		llvm::Value* val;
+		if (return_value) { 
+			val = return_value->Codegen();
+			returnValue = val;
+			Builder.CreateRet(returnValue);
+			returnValue = NULL;
+		}
+		return val;
+	}
 };
 
 class VarDefAST : public decafAST {
@@ -587,13 +671,8 @@ public:
 
 		if (param == false) {
 			p_alloc = Builder.CreateAlloca(llvm_type, NULL, name);
+			(symtbl.front())[name] = p_alloc;
 		}
-
-		descriptor* d = new descriptor;
-		d->type = type;
-		d->lineno = lineno;
-		d->p_alloc = p_alloc;
-		(symtbl.front())[name] = d;
 
 		return (llvm::Value*)p_alloc;
 	}
@@ -617,8 +696,9 @@ public:
 	llvm::Value *Codegen() {
 		llvm::Constant* Initializer;
 		llvm::Type* llvm_type = getType(type);
+		llvm::GlobalVariable *GV;
 
-		if (constant) {
+		if (constant) {	//globalvar
 			Initializer = (llvm::Constant*)constant->Codegen();
 		} else {
 			if (llvm_type->isIntegerTy(32)) {
@@ -630,15 +710,16 @@ public:
 			}
 		}
 		
+		if (constant || size == "Scalar" ) {
+			GV = new llvm::GlobalVariable(*TheModule, llvm_type, false, llvm::GlobalValue::InternalLinkage, Initializer, name);
+    	} else {
+			llvm::ArrayType *arrayi32 = llvm::ArrayType::get(llvm_type, 10);  
+			llvm::Constant *zeroInit = llvm::Constant::getNullValue(arrayi32);
+			GV = new llvm::GlobalVariable(*TheModule, arrayi32, false, llvm::GlobalValue::ExternalLinkage, zeroInit, name);
+		}
 
-		llvm::GlobalVariable *GV = new llvm::GlobalVariable(*TheModule, llvm_type, false, llvm::GlobalValue::InternalLinkage, Initializer, name);
+		(symtbl.front())[name] = (llvm::Value*) GV;
 
-		descriptor* d = new descriptor;
-		d->lineno = lineno;
-		d->type = type;
-		d->p_global = GV;
-
-		(symtbl.front())[name] = d;
 		return GV;
 	}
 };
@@ -655,14 +736,24 @@ public:
 	string str() { return string("MethodBlock") + "(" + getString(var_decl_list) + "," + getString(statement_list) + ")"; }
 	llvm::Value *Codegen() {
 		symtbl.push_front(symbol_table());
-		if(var_decl_list != NULL) { var_decl_list->Codegen(); }
-		if(statement_list != NULL) { statement_list->Codegen(); }
 
-		symbol_table st = symtbl.front();
-		for (symbol_table::iterator it = st.begin(); it != st.end(); it++){
-			delete(it->second);
+		llvm::BasicBlock* CurBB = Builder.GetInsertBlock();
+    	llvm::Function* p_func = CurBB->getParent();
+		llvm::StringRef func_name = p_func->getName();
+    	llvm::AllocaInst* p_alloc;
+
+		string arg_name;
+		for (llvm::Function::arg_iterator it = p_func->arg_begin(); it != p_func->arg_end(); it++) {
+			arg_name = (*it).getName();
+			p_alloc = Builder.CreateAlloca((*it).getType() , NULL, (*it).getName());
+			Builder.CreateStore(&(*it), p_alloc);
+			(symtbl.front())[arg_name] = (llvm::Value*)p_alloc;
 		}
 
+		if (var_decl_list != NULL) { var_decl_list->Codegen(); }
+		if (statement_list != NULL) { statement_list->Codegen(); }
+
+		symbol_table sym_table = symtbl.front();
 		symtbl.pop_front();
 		return NULL;
 	}
@@ -706,82 +797,44 @@ public:
 
 		p_func = llvm::Function::Create(llvm::FunctionType::get(return_type, arg_types, false), llvm::Function::ExternalLinkage, name, TheModule);
 
-		// build descriptor
-		descriptor* d = new descriptor;
-		d->p_func = p_func;
-		d->lineno = lineno;
-		d->type = type;
-		d->arg_names = arg_names;
-		d->arg_types = arg_types;
-		(symtbl.front())[name] = d;
+		unsigned int i = 0;
+		for (auto &Arg : p_func->args()) {
+			Arg.setName(arg_names[i++]);
+		}
 
+		(symtbl.front())[name] = (llvm::Value*)p_func;
 		return p_func;
 	}
+
 	llvm::Value *Codegen() {
-		llvm::Function *p_func;
+		llvm::Function *p_func = (llvm::Function*)access_symtbl(name);
 		list<decafAST*> stmnts;
 		llvm::Type *return_type = getType(type);
-		descriptor* d = access_symtbl(name);
-
-		if (return_type->isIntegerTy(32)) {
-			returnValue = Builder.getInt32(0);
-		} else {
-			returnValue = Builder.getInt1(1) ;
-		}
 
 		if (param_list != NULL) {
 			stmnts = param_list->getList();
 			param_list->Codegen();
 		}
 
-		vector<llvm::Type*> arg_types;
-		vector<string> arg_names;
-		for(list<decafAST*>:: iterator it = stmnts.begin(); it != stmnts.end(); it++){
-			VarDefAST* varDef = (VarDefAST*)(*it);
-			llvm::Type* vdtype = getType(varDef->getVarType());
-			string vdname = varDef->getName();
-			arg_names.push_back(vdname);
-			arg_types.push_back(vdtype);
-		}
-
-		// if there isn't a descriptor, create one
-		if (d == NULL) {
-			p_func = llvm::Function::Create(llvm::FunctionType::get(return_type, arg_types, false), llvm::Function::ExternalLinkage, name, TheModule);
-
-			descriptor* d = new descriptor;
-			d->p_func = p_func;
-			d->lineno = lineno;
-			d->type = type;
-			d->arg_names = arg_names;
-			d->arg_types = arg_types;
-			(symtbl.front())[name] = d;
-
-		} else {
-			p_func = d->p_func;
-		}
-
 		llvm::BasicBlock *BB = llvm::BasicBlock::Create(TheContext, "entry", p_func);
 		Builder.SetInsertPoint(BB);
 
-		unsigned int idx = 0;
-		for(llvm::Function::arg_iterator it = p_func->arg_begin(); it != p_func->arg_end(); it++, idx++) {
-			descriptor* d = access_symtbl(arg_names[idx]);
-			llvm::AllocaInst* p_alloc = d->p_alloc;
-
-			p_alloc = CreateEntryBlockAlloca(p_func, arg_types[idx], arg_names[idx]);
-			Builder.CreateStore(&(*it), p_alloc);
-
-			d->p_alloc = p_alloc;
+		if (block) {
+			block->Codegen(); 
 		}
 
-		if (block != NULL) {
-			block->Codegen();
-		}
-
-		if (return_type->isVoidTy()) {
-			Builder.CreateRet(NULL);
-		} else {
-			Builder.CreateRet(returnValue);
+		if (returnValue == NULL) {
+			if(return_type->isVoidTy()) { 
+				Builder.CreateRet(NULL);
+			} else {
+				if (return_type->isIntegerTy(32)) { 
+					returnValue = Builder.getInt32(0); 
+				} else { 
+					returnValue = Builder.getInt1(1) ; 
+				} 
+				Builder.CreateRet(returnValue);
+				returnValue = NULL;
+			}
 		}
 
 		verifyFunction(*p_func);
@@ -851,12 +904,24 @@ public:
 
 class BreakStmtAST : public decafAST {
 	string str() { return string("BreakStmt"); }
-	llvm::Value *Codegen() { return NULL; }
+	llvm::Value *Codegen() {
+		llvm::BasicBlock* BreakBB = (llvm::BasicBlock*)(access_symtbl("0_loopend")); 
+		if (BreakBB != NULL) {
+			Builder.CreateBr(BreakBB);
+		}  
+		return NULL;
+	}
 };
 
 class ContinueStmtAST : public decafAST {
 	string str() { return string("ContinueStmt"); }
-	llvm::Value *Codegen() { return NULL; }
+	llvm::Value *Codegen() {
+		llvm::BasicBlock* ContinueBB = (llvm::BasicBlock*)(access_symtbl("0_loopstart")); 
+		if (ContinueBB != NULL) {
+			Builder.CreateBr(ContinueBB);
+		}
+		return NULL;
+	}
 };
 
 class IdListAST : public decafAST {
@@ -885,6 +950,7 @@ public:
 		llvm::Type *ret_type = getType(return_type);
 		std::vector<llvm::Type*> args;
 
+
 		if (type_list != NULL) {
 			list<decafAST*> stmts = type_list->getList();
 			llvm::Type* retType;
@@ -905,13 +971,7 @@ public:
 		verifyFunction(*p_func);
 		llvm::Value *val = (llvm::Value*)p_func;
 
-		descriptor* d = new descriptor;
-		d->lineno = lineno;
-		d->p_func = p_func;
-		d->type = return_type;
-		d->arg_types = args;
-
-		(symtbl.front())[name] = d;
+		(symtbl.front())[name] = val;
 		return val;
 	}
 };

@@ -30,22 +30,14 @@ extern "C"
 	int yywrap(void);
 }
 
-typedef struct descriptor {
-	int lineno;
-	string type;
-	llvm::GlobalVariable* p_global;
-	llvm::AllocaInst* p_alloc;
-	llvm::Function* p_func;
-	vector<string> arg_names;
-	vector<llvm::Type*> arg_types;
-} descriptor;
+typedef struct { 
+	std::string* type;
+	std::string* size;
+} array_info;
 
-typedef map<string, descriptor* > symbol_table;
+typedef map<string, llvm::Value* > symbol_table;
 typedef list<symbol_table > symbol_table_list;
 extern symbol_table_list symtbl;
-extern descriptor* access_symtbl(string ident);
-
-
+extern llvm::Value* access_symtbl(string ident);
 
 #endif
-
