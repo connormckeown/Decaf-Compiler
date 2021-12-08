@@ -1,12 +1,11 @@
 extern func print_int(int) void;
-extern func print_string(string) void;
 
 package Test {
     func default(a bool) bool {
         if (a) {
-            print_string("true");
+            print_int(5);
         } else {
-            print_string("false");
+            print_int(4);
         }
     }
 
@@ -14,7 +13,7 @@ package Test {
         var flag bool;
         flag = default(false);
         if (flag) {
-            print_string("\ncorrect");
+            print_int(2);
         }
     }
 }

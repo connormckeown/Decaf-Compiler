@@ -1,5 +1,4 @@
 extern func print_int(int) void;
-extern func print_string(string) void;
 
 package Test {
     func main() int {
@@ -8,11 +7,7 @@ package Test {
 
         // shifting
         print_int(x << 1);
-        print_string("\n");
-
         print_int(x >> 1);
-        print_string("\n");
-        
         print_int(x >> 1 >> 1);
     }
 }

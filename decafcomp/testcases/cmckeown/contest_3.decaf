@@ -1,5 +1,4 @@
 extern func print_int(int) void;
-extern func print_string(string) void;
 
 package Test {
     func main() int {
@@ -9,7 +8,6 @@ package Test {
         for (i = 0; i <= 100; i = i + 1) {
             if (i % 2 != 0) {
                 print_int(i);
-                print_string("\n");
             }
         }
     }
